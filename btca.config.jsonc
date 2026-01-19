@@ -1,0 +1,40 @@
+{
+  "$schema": "https://btca.dev/btca.schema.json",
+  "resources": [
+    {
+      "name": "next",
+      "type": "git",
+      "url": "https://github.com/vercel/next.js",
+      "branch": "canary",
+      "searchPath": "docs",
+      "specialNotes": "Next.js documentation. Look in docs directory for markdown documentation.",
+    },
+    {
+      "name": "react",
+      "type": "git",
+      "url": "https://github.com/facebook/react",
+      "branch": "main",
+      "searchPath": "packages/react",
+      "specialNotes": "React source code. Focus on packages/react for core API and documentation.",
+    },
+    {
+      "name": "tailwind",
+      "type": "git",
+      "url": "https://github.com/tailwindlabs/tailwindcss.com",
+      "branch": "main",
+      "searchPath": "src/docs",
+      "specialNotes": "Tailwind CSS documentation website. Docs are in src/docs directory.",
+    },
+    {
+      "name": "typescript",
+      "type": "git",
+      "url": "https://github.com/microsoft/TypeScript-Website",
+      "branch": "v2",
+      "searchPath": "packages/documentation/copy/en",
+      "specialNotes": "TypeScript docs website source. Docs are in packages/documentation/copy/en directory. Could contain real old info, focus on more newer resources for latest TS features.",
+    },
+  ],
+  "model": "glm-4.7",
+  "provider": "zai-coding-plan",
+  "providerTimeoutMs": 300000,
+}
