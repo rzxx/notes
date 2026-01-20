@@ -36,16 +36,16 @@
     {
       "name": "drizzleOrm",
       "type": "git",
-      "url": "https://github.com/drizzle-team/drizzle-orm",
+      "url": "https://github.com/drizzle-team/drizzle-orm-docs",
       "branch": "main",
-      "searchPath": "drizzle-orm/docs",
+      "searchPath": "src/content/docs",
     },
     {
       "name": "tanstackQuery",
       "type": "git",
       "url": "https://github.com/TanStack/query",
       "branch": "main",
-      "searchPath": "docs/react",
+      "searchPath": "docs/framework/react",
     },
     {
       "name": "zustand",
@@ -53,6 +53,13 @@
       "url": "https://github.com/pmndrs/zustand",
       "branch": "main",
       "searchPath": "docs",
+    },
+    {
+      "name": "zod",
+      "type": "git",
+      "url": "https://github.com/colinhacks/zod",
+      "branch": "master",
+      "searchPath": "packages/docs/content",
     },
   ],
   "model": "glm-4.7",
