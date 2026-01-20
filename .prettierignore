@@ -1,0 +1,22 @@
+# dependencies / build output
+node_modules
+.next
+out
+dist
+build
+
+# misc
+coverage
+.vercel
+.turbo
+*.log
+
+# generated
+.next/
+next-env.d.ts
+
+# lockfiles
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
