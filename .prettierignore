@@ -14,9 +14,16 @@ coverage
 # generated
 .next/
 next-env.d.ts
+*.tsbuildinfo
 
 # lockfiles
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
 bun.lock
+
+# btca
+.btca
+
+# drizzle
+drizzle

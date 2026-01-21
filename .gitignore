@@ -43,4 +43,5 @@ next-env.d.ts
 # btca
 .btca
 
-/src/generated/prisma
+# drizzle
+drizzle
