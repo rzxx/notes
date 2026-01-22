@@ -3,12 +3,14 @@ import "server-only";
 export type AppError =
   | { code: "NOTE_NOT_FOUND"; noteId: string }
   | { code: "FORBIDDEN" }
-  | { code: "DB_ERROR" };
+  | { code: "DB_ERROR" }
+  | { code: "VALIDATION_ERROR"; issues: unknown };
 
 export const Errors = {
   noteNotFound: (noteId: string): AppError => ({ code: "NOTE_NOT_FOUND", noteId }),
   forbidden: (): AppError => ({ code: "FORBIDDEN" }),
   db: (): AppError => ({ code: "DB_ERROR" }),
+  validation: (issues: unknown): AppError => ({ code: "VALIDATION_ERROR", issues }),
 } as const;
 
 export function isAppError(x: unknown): x is AppError {
@@ -30,6 +32,8 @@ export function toHttp(err: AppError): { status: number; body: { error: AppError
       return { status: 403, body: { error: err } };
     case "DB_ERROR":
       return { status: 500, body: { error: err } };
+    case "VALIDATION_ERROR":
+      return { status: 400, body: { error: err } };
     default:
       return assertNever(err);
   }

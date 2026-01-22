@@ -1,6 +1,7 @@
 import { toHttp } from "@/lib/server/errors";
 import { createNoteSchema, deleteNoteSchema } from "@/lib/db/validators";
 import { createNote, deleteNote } from "@/lib/db/notes";
+import { Errors } from "@/lib/server/errors";
 
 export async function GET(request: Request) {
   return new Response("Notes API is working");
@@ -21,11 +22,16 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const body = await request.json();
-  const input = deleteNoteSchema.parse(body);
+  const input = deleteNoteSchema.safeParse(body);
+
+  if (!input.success) {
+    const { status, body } = toHttp(Errors.validation(input.error.issues));
+    return Response.json(body, { status });
+  }
 
   const deleteResult = await deleteNote({
     userId: process.env.STUB_USER_ID!,
-    noteId: input.noteId,
+    noteId: input.data.noteId,
   });
 
   if (!deleteResult.ok) {

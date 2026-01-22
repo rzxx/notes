@@ -76,7 +76,7 @@ export async function deleteNote(input: {
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
       if (!parentId[0]) {
-        return Errors.noteNotFound(input.noteId);
+        throw Errors.noteNotFound(input.noteId);
       }
 
       // 2) reparent children
