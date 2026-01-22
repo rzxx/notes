@@ -8,6 +8,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // NOTES
@@ -17,10 +18,9 @@ export const notes = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").notNull(),
 
-    parentId: uuid("parent_id"), // nullable root
+    parentId: uuid("parent_id").references((): AnyPgColumn => notes.id, { onDelete: "set null" }), // nullable root
 
     title: text("title").notNull(),
-    sortPosition: integer("sort_position").notNull().default(0),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -29,9 +29,6 @@ export const notes = pgTable(
     // Day-1 uniqueness rail: prevents duplicate sibling titles per user
     // (If you later add slug, swap this to (user_id, parent_id, slug))
     uniqueIndex("notes_uniq_user_parent_title").on(t.userId, t.parentId, t.title),
-
-    // Useful for tree navigation & sibling ordering queries
-    index("notes_idx_user_parent_sort").on(t.userId, t.parentId, t.sortPosition),
 
     index("notes_idx_user").on(t.userId),
   ],
@@ -42,8 +39,12 @@ export const noteClosure = pgTable(
   "note_closure",
   {
     userId: uuid("user_id").notNull(),
-    ancestorId: uuid("ancestor_id").notNull(),
-    descendantId: uuid("descendant_id").notNull(),
+    ancestorId: uuid("ancestor_id")
+      .notNull()
+      .references((): AnyPgColumn => notes.id, { onDelete: "cascade" }),
+    descendantId: uuid("descendant_id")
+      .notNull()
+      .references((): AnyPgColumn => notes.id, { onDelete: "cascade" }),
     depth: integer("depth").notNull(), // 0 = self row
   },
   (t) => [
@@ -61,7 +62,9 @@ export const blocks = pgTable(
   "blocks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    noteId: uuid("note_id").notNull(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references((): AnyPgColumn => notes.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull(),
 
     type: text("type").notNull(), // e.g. 'paragraph' | 'heading' | ...

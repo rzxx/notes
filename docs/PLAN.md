@@ -1,45 +1,198 @@
-Plan: Grainy Notes Next.js Rewrite
+# Implementation plan (flat blocks now, tree later)
 
-Context
+### Phase 1 — Foundations & Spine (skip auth)
 
-- Decisions: PostgreSQL + Drizzle, betterauth, TanStack Query + Zustand, custom component library, lightweight custom editor that is swappable, deploy on Vercel.
+#### 1) Project + runtime boundaries
 
-Phase 1: Foundations & Spine
+* App Router + TS strict + lint + CI
+* Server-only modules:
 
-- Next.js App Router with TypeScript strict, ESLint/Prettier, CI (lint/type/test), Vercel env scaffolding.
-- Drizzle schema: users, notes, blocks with UNIQUE (user_id, path); block position integer; FTS index on blocks.content; seed script.
-- Auth: betterauth; middleware for protected routes; public vs protected boundary.
-- API: app/api/notes (paginated list), app/api/notes/[...path] (get/update/delete), app/api/notes/create (unique naming), app/api/notes/search (FTS); standardized error shape.
-- State: TanStack Query provider and base hooks; Zustand for local UI state (drawers/menus).
-- UI shell: responsive three-column scaffold with noise/gradient tokens; placeholder editor and navigation list.
-- Acceptance: local run + CI green; can create/read stub note via API; auth session works; preview deploy on Vercel with validated envs.
+  * `lib/db/drizzle.ts` (Drizzle + Postgres connection)
+  * `lib/db/notes.ts` (query functions used by route handlers)
+* Client-only providers:
 
-Phase 2: Core Feature Parity
+  * `app/providers.tsx` (TanStack Query + Zustand)
 
-- Navigation: hierarchical path browsing from server data; create/move/delete with validation and unique naming; pagination/infinite scroll for lists.
-- Notes: lightweight custom block editor (paragraph, heading, divider) with optimistic mutations; reorder via position; autosave/blur save.
-- Search: PostgreSQL FTS, debounced client; metadata-only results, scoped per user.
-- Error handling: normalized API errors; client toasts/fallbacks; auth guard middleware redirects.
-- Tests: unit (path parse/naming), integration (auth, notes CRUD, search).
-- Acceptance: register/login, browse hierarchy, create/edit/delete/reorder blocks, search returns expected notes; tests passing.
+**Why:** sets clean “server vs client” walls so you don’t leak DB into client bundles.
 
-Phase 3: Quality & Polish
+---
 
-- UI fidelity: custom noise/shadows/gradients; responsive polish; Suspense-based loading and error boundaries around editor/shell.
-- Validation: Zod for inputs/responses/env; shared inferred types across API and client.
-- Observability: structured logging server-side, basic error tracking (e.g., Sentry), slow-query logging; 404/500 pages.
-- DX: stricter lint rules, seeds/fixtures, component demos, performance budgets.
-- Acceptance: visual parity with legacy aesthetic; clear validation errors; logs/error tracking in place; component demos load.
+#### 2) DB schema v1 (notes closure table + flat blocks)
 
-Phase 4: Upgrades & New Capabilities
+**Tables**
 
-- Auth: refresh rotation, password reset, optional OAuth providers; middleware session checks; auth event audit log.
-- Sharing groundwork: schema extensions for view/edit sharing and invite links (feature-flagged).
-- UX upgrades: keyboard shortcuts, command palette, drag-and-drop for blocks/paths, mobile nav polish/PWA.
-- Data/features: export (Markdown/HTML), version history via block snapshots, API rate limiting, background revalidation + cache headers.
-- Acceptance: OAuth works, sharing flaggable, shortcuts/palette/dnd functional, exports/history verified in tests, rate limits enforced.
+* `notes`
 
-Editor Swap Strategy
+  * `id`, `userId` (stub for now), `parentId` nullable, `title`, `sortPosition`, timestamps
+  * constraint: `UNIQUE(user_id, parent_id, title)` (or `slug`)
+* `note_closure`
 
-- Keep block schema minimal (type/content/properties, position) with no library-specific fields.
-- Expose editor operations via adapter (insert/delete/move/update) so a richer library (Tiptap/Slate) can be slotted later.
+  * `userId`, `ancestorId`, `descendantId`, `depth`
+  * PK: `(user_id, ancestor_id, descendant_id)`
+  * indexes: `(user_id, ancestor_id)`, `(user_id, descendant_id)`
+* `blocks` (flat)
+
+  * `id`, `noteId`, `userId`, `type`, `position`, `contentJson` (jsonb), `plainText` (text), timestamps
+  * index: `(note_id, position)`
+
+**Why flat blocks now:** you can build CRUD/reorder/autosave without subtree rules.
+
+**Also add day-1 safety rails**
+
+* all note create/move/delete ops in transactions (because closure updates)
+* a “rebuild closure from parentId” script (your seatbelt)
+
+---
+
+#### 3) Closure table operations (minimum set)
+
+Implement server functions (not API yet) for:
+
+* `createNote(parentId, title)`
+
+  * insert note
+  * insert closure rows:
+
+    * self row (note, note, depth 0)
+    * for each ancestor of parent: (ancestor -> note, depth+1)
+* `moveNote(noteId, newParentId)`
+
+  * cycle check using closure
+  * update `notes.parentId`
+  * update closure rows for subtree (transaction)
+* `deleteNote(noteId)` (and its subtree?)
+
+  * decide behavior (most file trees delete subtree)
+  * delete from notes (cascade) + closure rows (cascade)
+
+**Why:** do it before API so you can unit test it easily.
+
+---
+
+#### 4) API routes (contract first)
+
+Build these route handlers:
+
+* `GET /api/notes?parentId=...&cursor=...`
+  List children of a folder (metadata only)
+
+* `POST /api/notes/create`
+  Create under `parentId` with unique naming (title collision -> “(2)” or “-2”)
+
+* `GET /api/notes/:id`
+  Note metadata + blocks (ordered)
+
+* `PUT /api/notes/:id`
+  For Phase 1: maybe just rename note or update blocks in a basic way
+
+* `DELETE /api/notes/:id`
+
+* `POST /api/notes/move` (or `PUT /api/notes/:id/move`)
+  Move note by changing parentId (calls closure logic)
+
+Standardize error shape now.
+
+**Why:** once this contract exists, TanStack Query becomes straightforward.
+
+---
+
+#### 5) Query + UI scaffolding
+
+* Add QueryClientProvider in `app/providers.tsx`
+* Write base hooks:
+
+  * `useNotesChildren(parentId)`
+  * `useNote(noteId)`
+  * `useCreateNote()`
+  * `useMoveNote()`
+  * `useRenameNote()`
+* UI:
+
+  * left nav lists children of selected folder
+  * center shows blocks of selected note (read-only at first)
+  * right panel placeholder
+
+**Why:** you’ll see data flowing end-to-end before editor complexity.
+
+---
+
+### Phase 2 — Core parity (flat block editor)
+
+#### 6) Flat block editor MVP (no rich text yet)
+
+Block types: paragraph/heading/divider (maybe quote)
+
+* Paragraph + heading use `contentJson: { text: string }` for now
+* Keep `plainText = text`
+
+Editor behaviors (minimal):
+
+* Enter splits current block into two blocks
+* Backspace at start merges with previous
+* Reorder blocks (up/down buttons first; drag later)
+* Autosave on debounce or blur
+* Optimistic update via TanStack Query for block edits
+
+**Why:** this proves your block CRUD + optimistic mutations + ordering scheme.
+
+---
+
+#### 7) Search v1 (FTS on blocks.plainText)
+
+* Add DB index for FTS on `plainText`
+* `GET /api/notes/search?q=...` returns note hits (metadata-only)
+
+**Why:** validates your “blocks as search surface” approach.
+
+---
+
+### Phase 3 — Rich text (your Option B)
+
+#### 8) Upgrade paragraph/heading/quote to richText spans
+
+Change `contentJson` to:
+
+* `{ richText: Span[] }`
+  And implement normalization invariants:
+* merge adjacent spans with same marks
+* remove empties
+
+At first, you can still edit as plain text (one span) just to get storage ready.
+
+---
+
+#### 9) Pick editing strategy for formatting
+
+Choose one (later):
+
+* integrate an engine (Lexical/Tiptap) and serialize ↔ spans
+  or
+* custom contentEditable + selection transforms (hard mode)
+
+**Why:** you don’t block the rewrite on the hardest part.
+
+---
+
+### Phase 4 — Nested blocks (tree)
+
+#### 10) Add `parentBlockId` and sibling ordering
+
+* blocks gain `parentBlockId` nullable
+* position now “among siblings”
+* editor adds indent/outdent, toggles, lists, collapse
+
+This is where you’ll also likely want a “block closure table” *if* you do heavy subtree queries, but for blocks it’s often not needed because notes aren’t huge.
+
+---
+
+## The immediate “next 5 tasks” you should do now
+
+To keep momentum, do these in order:
+
+1. Implement `notes + note_closure` schema + migrations
+2. Implement `createNote()` + `rebuildClosure()` server functions
+3. Implement `GET children` + `POST create` API endpoints
+4. Add Query provider + `useNotesChildren` + `useCreateNote`
+5. Build left nav that can create a note under a folder and list children
+
+Once that works, everything else becomes easier.
