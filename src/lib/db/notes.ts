@@ -9,6 +9,18 @@ export async function createNote(input: {
   title: string;
 }) {
   return db.transaction(async (tx) => {
+    // 0) catch if tries to create note inside other user's note
+    if (input.parentId) {
+      const parentExists = await tx
+        .select({ id: notes.id })
+        .from(notes)
+        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.parentId)));
+
+      if (!parentExists[0]) {
+        throw new Error("Parent note not found for user");
+      }
+    }
+
     // 1) insert note
     const insertedNote = await tx
       .insert(notes)
@@ -52,9 +64,57 @@ export async function createNote(input: {
 export async function deleteNote(input: { userId: string; noteId: string }) {
   return db.transaction(async (tx) => {
     // 1) fetch parentId
+    const parentId = await tx
+      .select({ parentId: notes.parentId })
+      .from(notes)
+      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+    if (!parentId[0]) {
+      return null;
+    }
+
     // 2) reparent children
-    // 3) insert new closure rows for lifted subtrees
+    await tx
+      .update(notes)
+      .set({
+        parentId: parentId[0].parentId,
+      })
+      .where(and(eq(notes.userId, input.userId), eq(notes.parentId, input.noteId)));
+
+    // 3) update closure depths for lifted subtrees
+    if (parentId[0].parentId) {
+      const ancestorIds = tx
+        .select({ ancestorId: noteClosure.ancestorId })
+        .from(noteClosure)
+        .where(
+          and(eq(noteClosure.userId, input.userId), eq(noteClosure.descendantId, input.noteId)),
+        );
+
+      const descendantIds = tx
+        .select({ descendantId: noteClosure.descendantId })
+        .from(noteClosure)
+        .where(and(eq(noteClosure.userId, input.userId), eq(noteClosure.ancestorId, input.noteId)));
+
+      await tx
+        .update(noteClosure)
+        .set({ depth: sql`${noteClosure.depth} - 1` })
+        .where(
+          and(
+            eq(noteClosure.userId, input.userId),
+            sql`${noteClosure.ancestorId} in (${ancestorIds})`,
+            sql`${noteClosure.descendantId} in (${descendantIds})`,
+            sql`${noteClosure.ancestorId} <> ${input.noteId}`,
+            sql`${noteClosure.descendantId} <> ${input.noteId}`,
+          ),
+        );
+    }
     // 4) delete note (closure rows auto-delete via FK)
+    const deletedNote = await tx
+      .delete(notes)
+      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)))
+      .returning();
+
+    return deletedNote[0] ?? null;
   });
 }
 export async function rebuildClosure(input: { userId?: string }) {
