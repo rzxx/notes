@@ -1,7 +1,6 @@
 import "server-only";
 import { db } from "./drizzle";
 import { notes, noteClosure } from "./schema";
-import { use } from "react";
 import { eq, sql, and } from "drizzle-orm";
 
 export async function createNote(input: {
