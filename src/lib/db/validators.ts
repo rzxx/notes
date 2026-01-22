@@ -10,7 +10,10 @@ export const createNoteSchema = z.object({
 export const moveNoteSchema = z.object({
   noteId: z.uuid(),
   newParentId: z.uuid().nullable(),
-  newSortPosition: z.number().int().optional(),
+});
+
+export const deleteNoteSchema = z.object({
+  noteId: z.uuid(),
 });
 
 export const blockTypeSchema = z.enum([
