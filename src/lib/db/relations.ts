@@ -12,7 +12,9 @@ export const relations = defineRelations({ notes, noteClosure, blocks }, (r) => 
       alias: "note_parent",
     }),
 
-    blocks: r.many.blocks(),
+    blocks: r.many.blocks({
+      alias: "note_blocks",
+    }),
 
     ancestorLinks: r.many.noteClosure({
       alias: "descendant_link",
@@ -23,15 +25,10 @@ export const relations = defineRelations({ notes, noteClosure, blocks }, (r) => 
   },
 
   blocks: {
-    ancestor: r.one.notes({
-      from: r.noteClosure.ancestorId,
+    note: r.one.notes({
+      from: r.blocks.noteId,
       to: r.notes.id,
-      alias: "ancestor_link",
-    }),
-    descendant: r.one.notes({
-      from: r.noteClosure.descendantId,
-      to: r.notes.id,
-      alias: "descendant_link",
+      alias: "note_blocks",
     }),
   },
 
