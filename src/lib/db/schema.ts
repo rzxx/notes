@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // NOTES
 export const notes = pgTable(
@@ -27,8 +28,10 @@ export const notes = pgTable(
   },
   (t) => [
     // Day-1 uniqueness rail: prevents duplicate sibling titles per user
-    // (If you later add slug, swap this to (user_id, parent_id, slug))
     uniqueIndex("notes_uniq_user_parent_title").on(t.userId, t.parentId, t.title),
+    uniqueIndex("notes_uniq_user_root_title")
+      .on(t.userId, t.title)
+      .where(sql`${t.parentId} is null`),
 
     index("notes_idx_user").on(t.userId),
   ],
