@@ -1,3 +1,4 @@
+import { toHttp } from "@/lib/server/errors";
 import { createNoteSchema, deleteNoteSchema } from "@/lib/db/validators";
 import { createNote, deleteNote } from "@/lib/db/notes";
 
@@ -22,10 +23,15 @@ export async function DELETE(request: Request) {
   const body = await request.json();
   const input = deleteNoteSchema.parse(body);
 
-  const deletedNote = await deleteNote({
+  const deleteResult = await deleteNote({
     userId: process.env.STUB_USER_ID!,
     noteId: input.noteId,
   });
 
-  return Response.json({ ok: true, note: deletedNote });
+  if (!deleteResult.ok) {
+    const { status, body } = toHttp(deleteResult.error);
+    return Response.json(body, { status });
+  }
+
+  return Response.json({ ok: true, note: deleteResult.value });
 }

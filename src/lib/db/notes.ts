@@ -2,6 +2,8 @@ import "server-only";
 import { db } from "./drizzle";
 import { notes, noteClosure } from "./schema";
 import { eq, sql, and } from "drizzle-orm";
+import { Err, Ok, type Result } from "@/lib/result";
+import { Errors, isAppError, type AppError } from "@/lib/server/errors";
 
 export async function createNote(input: {
   userId: string;
@@ -61,61 +63,72 @@ export async function createNote(input: {
   });
 }
 
-export async function deleteNote(input: { userId: string; noteId: string }) {
-  return db.transaction(async (tx) => {
-    // 1) fetch parentId
-    const parentId = await tx
-      .select({ parentId: notes.parentId })
-      .from(notes)
-      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+export async function deleteNote(input: {
+  userId: string;
+  noteId: string;
+}): Promise<Result<{ deleted: true }, AppError>> {
+  try {
+    await db.transaction(async (tx) => {
+      // 1) fetch parentId
+      const parentId = await tx
+        .select({ parentId: notes.parentId })
+        .from(notes)
+        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-    if (!parentId[0]) {
-      return null;
-    }
+      if (!parentId[0]) {
+        return Errors.noteNotFound(input.noteId);
+      }
 
-    // 2) reparent children
-    await tx
-      .update(notes)
-      .set({
-        parentId: parentId[0].parentId,
-      })
-      .where(and(eq(notes.userId, input.userId), eq(notes.parentId, input.noteId)));
-
-    // 3) update closure depths for lifted subtrees
-    if (parentId[0].parentId) {
-      const ancestorIds = tx
-        .select({ ancestorId: noteClosure.ancestorId })
-        .from(noteClosure)
-        .where(
-          and(eq(noteClosure.userId, input.userId), eq(noteClosure.descendantId, input.noteId)),
-        );
-
-      const descendantIds = tx
-        .select({ descendantId: noteClosure.descendantId })
-        .from(noteClosure)
-        .where(and(eq(noteClosure.userId, input.userId), eq(noteClosure.ancestorId, input.noteId)));
-
+      // 2) reparent children
       await tx
-        .update(noteClosure)
-        .set({ depth: sql`${noteClosure.depth} - 1` })
-        .where(
-          and(
-            eq(noteClosure.userId, input.userId),
-            sql`${noteClosure.ancestorId} in (${ancestorIds})`,
-            sql`${noteClosure.descendantId} in (${descendantIds})`,
-            sql`${noteClosure.ancestorId} <> ${input.noteId}`,
-            sql`${noteClosure.descendantId} <> ${input.noteId}`,
-          ),
-        );
-    }
-    // 4) delete note (closure rows auto-delete via FK)
-    const deletedNote = await tx
-      .delete(notes)
-      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)))
-      .returning();
+        .update(notes)
+        .set({
+          parentId: parentId[0].parentId,
+        })
+        .where(and(eq(notes.userId, input.userId), eq(notes.parentId, input.noteId)));
 
-    return deletedNote[0] ?? null;
-  });
+      // 3) update closure depths for lifted subtrees
+      if (parentId[0].parentId) {
+        const ancestorIds = tx
+          .select({ ancestorId: noteClosure.ancestorId })
+          .from(noteClosure)
+          .where(
+            and(eq(noteClosure.userId, input.userId), eq(noteClosure.descendantId, input.noteId)),
+          );
+
+        const descendantIds = tx
+          .select({ descendantId: noteClosure.descendantId })
+          .from(noteClosure)
+          .where(
+            and(eq(noteClosure.userId, input.userId), eq(noteClosure.ancestorId, input.noteId)),
+          );
+
+        await tx
+          .update(noteClosure)
+          .set({ depth: sql`${noteClosure.depth} - 1` })
+          .where(
+            and(
+              eq(noteClosure.userId, input.userId),
+              sql`${noteClosure.ancestorId} in (${ancestorIds})`,
+              sql`${noteClosure.descendantId} in (${descendantIds})`,
+              sql`${noteClosure.ancestorId} <> ${input.noteId}`,
+              sql`${noteClosure.descendantId} <> ${input.noteId}`,
+            ),
+          );
+      }
+      // 4) delete note (closure rows auto-delete via FK)
+      await tx.delete(notes).where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+    });
+
+    return Ok({ deleted: true });
+  } catch (e) {
+    // If we threw our own AppError, preserve it
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    // Otherwise treat as internal/db failure (log e if you want)
+    return Err(Errors.db());
+  }
 }
 export async function rebuildClosure(input: { userId?: string }) {
   return db.transaction(async (tx) => {
