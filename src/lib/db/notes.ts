@@ -20,7 +20,7 @@ export async function createNote(input: {
           .where(and(eq(notes.userId, input.userId), eq(notes.id, input.parentId)));
 
         if (!parentExists[0]) {
-          throw Err(Errors.NOTE_NOT_FOUND(input.parentId));
+          throw Errors.NOTE_NOT_FOUND(input.parentId);
         }
       }
 
@@ -33,6 +33,9 @@ export async function createNote(input: {
           title: input.title,
         })
         .returning({ id: notes.id });
+
+      // sanity check
+      if (!insertedNote[0]) throw Errors.DB_ERROR();
 
       // 2) insert self closure row
       await tx.insert(noteClosure).values({
@@ -90,7 +93,7 @@ export async function deleteNote(input: {
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
       if (!parentId[0]) {
-        throw Err(Errors.NOTE_NOT_FOUND(input.noteId));
+        throw Errors.NOTE_NOT_FOUND(input.noteId);
       }
 
       // 2) reparent children
@@ -187,7 +190,7 @@ export async function rebuildClosure(input: {
     });
 
     return Ok({ rebuilt: true });
-  } catch (e) {
+  } catch {
     // treat as internal/db failure (log e if you want)
     return Err(Errors.DB_ERROR());
   }

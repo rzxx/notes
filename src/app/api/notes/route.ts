@@ -1,17 +1,16 @@
 import { createNoteSchema, deleteNoteSchema } from "@/lib/db/validators";
 import { createNote, deleteNote } from "@/lib/db/notes";
 import { andThenAsync } from "@/lib/result";
-import { safeParseToResult, safeJsonParse } from "@/lib/server/utils";
+import { safeJsonParse } from "@/lib/server/utils";
 import { appErrorToHttp } from "@/lib/server/errors";
 
-export async function GET(request: Request) {
+export async function GET(/* request: Request */) {
   return new Response("Notes API is working");
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-
-  const result = await andThenAsync(safeParseToResult(createNoteSchema, body), (data) =>
+  const parsed = await safeJsonParse(request, createNoteSchema);
+  const result = await andThenAsync(parsed, (data) =>
     createNote({
       userId: process.env.STUB_USER_ID!,
       parentId: data.parentId,
@@ -27,9 +26,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const body = await request.json();
-
-  const result = await andThenAsync(safeParseToResult(deleteNoteSchema, body), (data) =>
+  const parsed = await safeJsonParse(request, deleteNoteSchema);
+  const result = await andThenAsync(parsed, (data) =>
     deleteNote({
       userId: process.env.STUB_USER_ID!,
       noteId: data.noteId,

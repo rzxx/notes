@@ -32,13 +32,12 @@ export async function safeJsonParse<T>(
   try {
     body = await request.json();
   } catch (cause: unknown) {
-    // Many runtimes throw SyntaxError("Unexpected end of JSON input") for empty body
-    // Could add EMPTY_BODY_ERROR.
-    if (cause instanceof SyntaxError) {
-      return Err(Errors.JSON_PARSE_ERROR(cause));
+    if (cause instanceof SyntaxError && cause.message.includes("Unexpected end of JSON")) {
+      return Err(Errors.JSON_EMPTY_BODY());
     }
+    const message = cause instanceof Error ? cause.message : String(cause);
 
-    return Err(Errors.JSON_PARSE_ERROR(cause));
+    return Err(Errors.JSON_PARSE_ERROR(message));
   }
 
   return safeParseToResult(schema, body);
