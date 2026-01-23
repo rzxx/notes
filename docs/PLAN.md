@@ -98,13 +98,15 @@ Standardize error shape now.
 
 - Add QueryClientProvider in `app/providers.tsx`
 - Write base hooks:
-  - `useNotesChildren(parentId)`
-  - `useNote(noteId)`
-  - `useCreateNote()`
-  - `useMoveNote()`
-  - `useRenameNote()`
+  - `useNotesChildren(parentId)` [done]
+  - `useNote(noteId)` [done]
+  - `useCreateNote()` [done]
+  - `useMoveNote()` [done]
+  - `useRenameNote()` [done]
+  - `useDeleteNote()` [done]
 
 - UI:
+  - demo page uses hooks for create/list/detail/rename/move/delete [done]
   - left nav lists children of selected folder
   - center shows blocks of selected note (read-only at first)
   - right panel placeholder
@@ -189,7 +191,7 @@ To keep momentum, do these in order:
 1. Implement `moveNote()` server function (cycle check + closure updates) [done]
 2. Add `PUT /api/notes/:id/move` (or `/api/notes/move`) endpoint + wire schema [done]
 3. Add `GET /api/notes/:id` (metadata + blocks) and basic `PUT /api/notes/:id` (rename) [done]
-4. Add client hooks: `useNotesChildren`, `useCreateNote`, `useMoveNote`, `useRenameNote`
+4. Add client hooks: `useNotesChildren`, `useCreateNote`, `useMoveNote`, `useRenameNote` [done]
 5. Replace the starter UI with a left-nav list that can create notes + move notes
 
 Once that works, everything else becomes easier.
