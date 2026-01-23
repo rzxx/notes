@@ -59,7 +59,7 @@
       "type": "git",
       "name": "zod",
       "url": "https://github.com/colinhacks/zod",
-      "branch": "master",
+      "branch": "main",
       "searchPath": "packages/docs/content",
     },
   ],
