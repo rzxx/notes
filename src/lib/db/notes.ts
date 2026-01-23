@@ -2,15 +2,15 @@ import "server-only";
 import { db } from "./drizzle";
 import { notes, noteClosure } from "./schema";
 import { eq, sql, and, desc, lt, or, isNull } from "drizzle-orm";
-import { Err, Ok, type Result } from "@/lib/result";
-import { Errors, isAppError, type AppError } from "@/lib/server/errors";
+import { Err, Ok } from "@/lib/result";
+import { Errors, isAppError } from "@/lib/server/errors";
 import { parseCursor } from "@/lib/server/utils";
 
 export async function createNote(input: {
   userId: string;
   parentId?: string | null;
   title: string;
-}): Promise<Result<{ id: string }, AppError>> {
+}) {
   try {
     const result = await db.transaction(async (tx) => {
       // 0) catch if tries to create note inside other user's note
@@ -81,10 +81,7 @@ export async function createNote(input: {
   }
 }
 
-export async function deleteNote(input: {
-  userId: string;
-  noteId: string;
-}): Promise<Result<{ deleted: true }, AppError>> {
+export async function deleteNote(input: { userId: string; noteId: string }) {
   try {
     await db.transaction(async (tx) => {
       // 1) fetch parentId
@@ -149,9 +146,7 @@ export async function deleteNote(input: {
   }
 }
 
-export async function rebuildClosure(input: {
-  userId?: string;
-}): Promise<Result<{ rebuilt: true }, AppError>> {
+export async function rebuildClosure(input: { userId?: string }) {
   try {
     await db.transaction(async (tx) => {
       if (input.userId) {
@@ -203,21 +198,7 @@ export async function getNotesList(input: {
   parentId?: string | null;
   limit: number;
   cursor?: string;
-}): Promise<
-  Result<
-    {
-      notes: {
-        id: string;
-        parentId: string | null;
-        title: string;
-        createdAt: Date;
-        updatedAt: Date;
-      }[];
-      nextCursor: string | null;
-    },
-    AppError
-  >
-> {
+}) {
   try {
     const cursorResult = input.cursor ? parseCursor(input.cursor) : Ok(null);
     if (!cursorResult.ok) return Err(cursorResult.error);
