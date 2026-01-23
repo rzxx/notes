@@ -14,6 +14,8 @@ export const AppErrorSchema = z.discriminatedUnion("code", [
   z.object({ code: z.literal("FORBIDDEN") }),
   z.object({ code: z.literal("DB_ERROR") }),
   z.object({ code: z.literal("VALIDATION_ERROR"), issues: z.custom<$ZodError["issues"]>() }),
+  z.object({ code: z.literal("JSON_PARSE_ERROR"), cause: z.unknown() }),
+  z.object({ code: z.literal("UNSUPPORTED_CONTENT_TYPE"), contentType: z.string() }),
 ]);
 
 export type AppError = z.infer<typeof AppErrorSchema>;
@@ -25,6 +27,8 @@ const ERROR_HTTP_MAP = {
   FORBIDDEN: { status: 403 },
   DB_ERROR: { status: 500 },
   VALIDATION_ERROR: { status: 400 },
+  JSON_PARSE_ERROR: { status: 400 },
+  UNSUPPORTED_CONTENT_TYPE: { status: 415 },
 } satisfies Record<AppErrorCode, HttpErrorMeta>;
 
 // Per-code constructor args for ergonomic error creation
@@ -34,7 +38,11 @@ type ErrorCtorArgs<K extends AppErrorCode> =
     ? [noteId: string]
     : K extends "VALIDATION_ERROR"
       ? [issues: $ZodError["issues"]]
-      : [];
+      : K extends "JSON_PARSE_ERROR"
+        ? [cause: unknown]
+        : K extends "UNSUPPORTED_CONTENT_TYPE"
+          ? [contentType: string]
+          : [];
 
 // Mapping of error codes to their constructors
 type ErrorCtors = {
@@ -47,6 +55,11 @@ export const Errors = {
   FORBIDDEN: () => ({ code: "FORBIDDEN" }),
   DB_ERROR: () => ({ code: "DB_ERROR" }),
   VALIDATION_ERROR: (issues: $ZodError["issues"]) => ({ code: "VALIDATION_ERROR", issues }),
+  JSON_PARSE_ERROR: (cause: unknown) => ({ code: "JSON_PARSE_ERROR", cause }),
+  UNSUPPORTED_CONTENT_TYPE: (contentType: string) => ({
+    code: "UNSUPPORTED_CONTENT_TYPE",
+    contentType,
+  }),
 } satisfies ErrorCtors;
 
 // Type guard to check if an unknown value is an AppError

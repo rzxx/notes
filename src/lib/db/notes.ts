@@ -9,58 +9,72 @@ export async function createNote(input: {
   userId: string;
   parentId?: string | null;
   title: string;
-}) {
-  return db.transaction(async (tx) => {
-    // 0) catch if tries to create note inside other user's note
-    if (input.parentId) {
-      const parentExists = await tx
-        .select({ id: notes.id })
-        .from(notes)
-        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.parentId)));
+}): Promise<Result<{ id: string }, AppError>> {
+  try {
+    const result = await db.transaction(async (tx) => {
+      // 0) catch if tries to create note inside other user's note
+      if (input.parentId) {
+        const parentExists = await tx
+          .select({ id: notes.id })
+          .from(notes)
+          .where(and(eq(notes.userId, input.userId), eq(notes.id, input.parentId)));
 
-      if (!parentExists[0]) {
-        throw new Error("Parent note not found for user");
+        if (!parentExists[0]) {
+          throw Err(Errors.NOTE_NOT_FOUND(input.parentId));
+        }
       }
-    }
 
-    // 1) insert note
-    const insertedNote = await tx
-      .insert(notes)
-      .values({
+      // 1) insert note
+      const insertedNote = await tx
+        .insert(notes)
+        .values({
+          userId: input.userId,
+          parentId: input.parentId ?? null,
+          title: input.title,
+        })
+        .returning({ id: notes.id });
+
+      // 2) insert self closure row
+      await tx.insert(noteClosure).values({
         userId: input.userId,
-        parentId: input.parentId ?? null,
-        title: input.title,
-      })
-      .returning();
+        ancestorId: insertedNote[0].id,
+        descendantId: insertedNote[0].id,
+        depth: 0,
+      });
 
-    // 2) insert self closure row
-    await tx.insert(noteClosure).values({
-      userId: input.userId,
-      ancestorId: insertedNote[0].id,
-      descendantId: insertedNote[0].id,
-      depth: 0,
+      // 3) insert ancestor rows from parent
+      if (input.parentId) {
+        await tx.insert(noteClosure).select(
+          tx
+            .select({
+              userId: noteClosure.userId,
+              ancestorId: noteClosure.ancestorId,
+              descendantId: sql`${insertedNote[0].id}`.as("descendant_id"),
+              depth: sql`${noteClosure.depth} + 1`.as("depth"),
+            })
+            .from(noteClosure)
+            .where(
+              and(
+                eq(noteClosure.userId, input.userId),
+                eq(noteClosure.descendantId, input.parentId),
+              ),
+            ),
+        );
+      }
+
+      // return created note
+      return insertedNote[0];
     });
 
-    // 3) insert ancestor rows from parent
-    if (input.parentId) {
-      await tx.insert(noteClosure).select(
-        tx
-          .select({
-            userId: noteClosure.userId,
-            ancestorId: noteClosure.ancestorId,
-            descendantId: sql`${insertedNote[0].id}`.as("descendant_id"),
-            depth: sql`${noteClosure.depth} + 1`.as("depth"),
-          })
-          .from(noteClosure)
-          .where(
-            and(eq(noteClosure.userId, input.userId), eq(noteClosure.descendantId, input.parentId)),
-          ),
-      );
+    return Ok({ id: result.id });
+  } catch (e) {
+    // If we threw our own AppError, preserve it
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
     }
-
-    // return created note
-    return insertedNote[0];
-  });
+    // Otherwise treat as internal/db failure (log e if you want)
+    return Err(Errors.DB_ERROR());
+  }
 }
 
 export async function deleteNote(input: {
@@ -130,8 +144,51 @@ export async function deleteNote(input: {
     return Err(Errors.DB_ERROR());
   }
 }
-export async function rebuildClosure(input: { userId?: string }) {
-  return db.transaction(async (tx) => {
-    // recursive CTE rebuild
-  });
+export async function rebuildClosure(input: {
+  userId?: string;
+}): Promise<Result<{ rebuilt: true }, AppError>> {
+  try {
+    await db.transaction(async (tx) => {
+      if (input.userId) {
+        await tx.delete(noteClosure).where(eq(noteClosure.userId, input.userId));
+      } else {
+        await tx.delete(noteClosure);
+      }
+
+      const userWhere = input.userId ? sql`where n.user_id = ${input.userId}` : sql``;
+
+      await tx.execute(sql`
+      with recursive closure as (
+        select
+          n.user_id as user_id,
+          n.id as ancestor_id,
+          n.id as descendant_id,
+          0 as depth
+        from notes n
+        ${userWhere}
+
+        union all
+
+        select
+          c.user_id as user_id,
+          p.parent_id as ancestor_id,
+          c.descendant_id as descendant_id,
+          c.depth + 1 as depth
+        from closure c
+        join notes p
+          on p.id = c.ancestor_id
+         and p.user_id = c.user_id
+        where p.parent_id is not null
+      )
+      insert into note_closure (user_id, ancestor_id, descendant_id, depth)
+      select user_id, ancestor_id, descendant_id, depth
+      from closure
+    `);
+    });
+
+    return Ok({ rebuilt: true });
+  } catch (e) {
+    // treat as internal/db failure (log e if you want)
+    return Err(Errors.DB_ERROR());
+  }
 }
