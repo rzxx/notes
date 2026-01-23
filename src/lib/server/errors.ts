@@ -42,6 +42,7 @@ export function sanitizeError(error: AppError | InternalError): AppError {
 
 // HTTP mapping
 export function appErrorToHttp(error: AppError | InternalError) {
+  // Remove any internal errors, send only public errors
   const publicError = sanitizeError(error);
   const meta = ERROR_HTTP_MAP[publicError.code];
 

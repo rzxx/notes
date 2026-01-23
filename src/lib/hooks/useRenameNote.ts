@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchResult } from "@/lib/api";
 
 type RenameNoteInput = {
   noteId: string;
@@ -14,18 +15,14 @@ type RenameNoteResponse = {
 };
 
 async function renameNote(input: RenameNoteInput) {
-  const response = await fetch(`/api/notes/${input.noteId}`, {
+  const result = await fetchResult<RenameNoteResponse>(`/api/notes/${input.noteId}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ title: input.title }),
   });
 
-  const payload = (await response.json()) as RenameNoteResponse;
-  if (!response.ok) {
-    throw new Error(payload ? JSON.stringify(payload) : "Request failed");
-  }
-
-  return payload;
+  if (!result.ok) throw result.error;
+  return result.value;
 }
 
 export function useRenameNote() {

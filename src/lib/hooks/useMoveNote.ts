@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchResult } from "@/lib/api";
 
 type MoveNoteInput = {
   noteId: string;
@@ -14,7 +15,7 @@ type MoveNoteResponse = {
 };
 
 async function moveNote(input: MoveNoteInput) {
-  const response = await fetch("/api/notes/move", {
+  const result = await fetchResult<MoveNoteResponse>("/api/notes/move", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -23,12 +24,8 @@ async function moveNote(input: MoveNoteInput) {
     }),
   });
 
-  const payload = (await response.json()) as MoveNoteResponse;
-  if (!response.ok) {
-    throw new Error(payload ? JSON.stringify(payload) : "Request failed");
-  }
-
-  return payload;
+  if (!result.ok) throw result.error;
+  return result.value;
 }
 
 export function useMoveNote() {

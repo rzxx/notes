@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { fetchResult } from "@/lib/api";
 
 type NoteDetail = {
   id: string;
@@ -27,17 +28,13 @@ type NoteResponse = {
 };
 
 async function fetchNote(noteId: string) {
-  const response = await fetch(`/api/notes/${noteId}`, {
+  const result = await fetchResult<NoteResponse>(`/api/notes/${noteId}`, {
     method: "GET",
     headers: { "content-type": "application/json" },
   });
 
-  const payload = (await response.json()) as NoteResponse;
-  if (!response.ok) {
-    throw new Error(payload ? JSON.stringify(payload) : "Request failed");
-  }
-
-  return payload;
+  if (!result.ok) throw result.error;
+  return result.value;
 }
 
 export function useNote(noteId: string | null) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchResult } from "@/lib/api";
 
 type DeleteNoteInput = {
   noteId: string;
@@ -13,18 +14,14 @@ type DeleteNoteResponse = {
 };
 
 async function deleteNote(input: DeleteNoteInput) {
-  const response = await fetch("/api/notes", {
+  const result = await fetchResult<DeleteNoteResponse>("/api/notes", {
     method: "DELETE",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ noteId: input.noteId }),
   });
 
-  const payload = (await response.json()) as DeleteNoteResponse;
-  if (!response.ok) {
-    throw new Error(payload ? JSON.stringify(payload) : "Request failed");
-  }
-
-  return payload;
+  if (!result.ok) throw result.error;
+  return result.value;
 }
 
 export function useDeleteNote() {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { fetchResult } from "@/lib/api";
 
 type NotesListItem = {
   id: string;
@@ -21,17 +22,13 @@ async function fetchNotesChildren(parentId?: string | null) {
   if (parentId) params.set("parentId", parentId);
   const url = params.toString() ? `/api/notes?${params.toString()}` : "/api/notes";
 
-  const response = await fetch(url, {
+  const result = await fetchResult<NotesListResponse>(url, {
     method: "GET",
     headers: { "content-type": "application/json" },
   });
 
-  const payload = (await response.json()) as NotesListResponse;
-  if (!response.ok) {
-    throw new Error(payload ? JSON.stringify(payload) : "Request failed");
-  }
-
-  return payload;
+  if (!result.ok) throw result.error;
+  return result.value;
 }
 
 export function useNotesChildren(parentId: string | null) {
