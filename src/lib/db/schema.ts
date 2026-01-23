@@ -34,6 +34,7 @@ export const notes = pgTable(
       .where(sql`${t.parentId} is null`),
 
     index("notes_idx_user").on(t.userId),
+    index("notes_idx_user_parent_created_id").on(t.userId, t.parentId, t.createdAt, t.id),
   ],
 );
 

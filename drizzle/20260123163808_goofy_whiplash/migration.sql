@@ -1,0 +1,1 @@
+CREATE INDEX "notes_idx_user_parent_created_id" ON "notes" ("user_id","parent_id","created_at","id");

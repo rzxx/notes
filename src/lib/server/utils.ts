@@ -1,5 +1,5 @@
 import "server-only";
-import type { z } from "zod";
+import { z } from "zod";
 import { Errors, type AppError } from "@/lib/server/errors";
 import { Result, Ok, Err } from "@/lib/result";
 
@@ -41,4 +41,19 @@ export async function safeJsonParse<T>(
   }
 
   return safeParseToResult(schema, body);
+}
+
+export function parseCursor(cursor?: string): Result<{ createdAt: Date; id: string }, AppError> {
+  if (!cursor) return Err(Errors.CURSOR_PARSE_ERROR());
+  const [createdAtRaw, id] = cursor.split("|");
+  if (!createdAtRaw || !id) return Err(Errors.CURSOR_PARSE_ERROR());
+
+  const createdAtMs = Number(createdAtRaw);
+  if (!Number.isFinite(createdAtMs)) return Err(Errors.CURSOR_PARSE_ERROR());
+  const createdAt = new Date(createdAtMs);
+  if (Number.isNaN(createdAt.getTime())) return Err(Errors.CURSOR_PARSE_ERROR());
+
+  const idCheck = z.uuid().safeParse(id);
+  if (!idCheck.success) return Err(Errors.VALIDATION_ERROR(idCheck.error.issues));
+  return Ok({ createdAt, id });
 }

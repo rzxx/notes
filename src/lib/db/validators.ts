@@ -16,6 +16,12 @@ export const deleteNoteSchema = z.object({
   noteId: z.uuid(),
 });
 
+export const getNoteListSchema = z.object({
+  parentId: z.uuid().nullable().optional(),
+  limit: z.number().int().min(1).max(200).optional().default(50),
+  cursor: z.string().optional(),
+});
+
 export const blockTypeSchema = z.enum([
   "paragraph",
   "heading",

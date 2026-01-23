@@ -17,6 +17,7 @@ export const AppErrorSchema = z.discriminatedUnion("code", [
   z.object({ code: z.literal("JSON_PARSE_ERROR"), message: z.unknown() }),
   z.object({ code: z.literal("JSON_EMPTY_BODY") }),
   z.object({ code: z.literal("UNSUPPORTED_CONTENT_TYPE"), contentType: z.string() }),
+  z.object({ code: z.literal("CURSOR_PARSE_ERROR") }),
 ]);
 
 export type AppError = z.infer<typeof AppErrorSchema>;
@@ -31,6 +32,7 @@ const ERROR_HTTP_MAP = {
   JSON_PARSE_ERROR: { status: 400 },
   JSON_EMPTY_BODY: { status: 400 },
   UNSUPPORTED_CONTENT_TYPE: { status: 415 },
+  CURSOR_PARSE_ERROR: { status: 400 },
 } satisfies Record<AppErrorCode, HttpErrorMeta>;
 
 // Per-code constructor args for ergonomic error creation
@@ -63,6 +65,7 @@ export const Errors = {
     contentType,
   }),
   JSON_EMPTY_BODY: () => ({ code: "JSON_EMPTY_BODY" }),
+  CURSOR_PARSE_ERROR: () => ({ code: "CURSOR_PARSE_ERROR" }),
 } satisfies ErrorCtors;
 
 // Type guard to check if an unknown value is an AppError

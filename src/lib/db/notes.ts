@@ -1,9 +1,10 @@
 import "server-only";
 import { db } from "./drizzle";
 import { notes, noteClosure } from "./schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, desc, lt, or, isNull } from "drizzle-orm";
 import { Err, Ok, type Result } from "@/lib/result";
 import { Errors, isAppError, type AppError } from "@/lib/server/errors";
+import { parseCursor } from "@/lib/server/utils";
 
 export async function createNote(input: {
   userId: string;
@@ -147,6 +148,7 @@ export async function deleteNote(input: {
     return Err(Errors.DB_ERROR());
   }
 }
+
 export async function rebuildClosure(input: {
   userId?: string;
 }): Promise<Result<{ rebuilt: true }, AppError>> {
@@ -192,6 +194,70 @@ export async function rebuildClosure(input: {
     return Ok({ rebuilt: true });
   } catch {
     // treat as internal/db failure (log e if you want)
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function getNotesList(input: {
+  userId: string;
+  parentId?: string | null;
+  limit: number;
+  cursor?: string;
+}): Promise<
+  Result<
+    {
+      notes: {
+        id: string;
+        parentId: string | null;
+        title: string;
+        createdAt: Date;
+        updatedAt: Date;
+      }[];
+      nextCursor: string | null;
+    },
+    AppError
+  >
+> {
+  try {
+    const cursorResult = input.cursor ? parseCursor(input.cursor) : Ok(null);
+    if (!cursorResult.ok) return Err(cursorResult.error);
+    const parsedCursor = cursorResult.value;
+
+    const parentClause = input.parentId
+      ? eq(notes.parentId, input.parentId)
+      : isNull(notes.parentId);
+    const cursorClause = parsedCursor
+      ? or(
+          lt(notes.createdAt, parsedCursor.createdAt),
+          and(eq(notes.createdAt, parsedCursor.createdAt), lt(notes.id, parsedCursor.id)),
+        )
+      : undefined;
+
+    const rows = await db
+      .select({
+        id: notes.id,
+        parentId: notes.parentId,
+        title: notes.title,
+        createdAt: notes.createdAt,
+        updatedAt: notes.updatedAt,
+      })
+      .from(notes)
+      .where(
+        and(eq(notes.userId, input.userId), parentClause, ...(cursorClause ? [cursorClause] : [])),
+      )
+      .orderBy(desc(notes.createdAt), desc(notes.id))
+      .limit(input.limit + 1);
+
+    const hasMore = rows.length > input.limit;
+    const notesList = hasMore ? rows.slice(0, input.limit) : rows;
+    const last = hasMore ? notesList[notesList.length - 1] : null;
+    const nextCursor = last ? `${last.createdAt.getTime()}|${last.id}` : null;
+
+    return Ok({ notes: notesList, nextCursor });
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
     return Err(Errors.DB_ERROR());
   }
 }
