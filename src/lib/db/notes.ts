@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "./drizzle";
-import { notes, noteClosure } from "./schema";
+import { blocks, notes, noteClosure } from "./schema";
 import { eq, sql, and, desc, lt, or, isNull } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/server/errors";
@@ -333,6 +333,67 @@ export async function getNotesList(input: {
     const nextCursor = last ? `${last.createdAt.getTime()}|${last.id}` : null;
 
     return Ok({ notes: notesList, nextCursor });
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function getNoteById(input: { userId: string; noteId: string }) {
+  try {
+    const note = await db
+      .select({
+        id: notes.id,
+        parentId: notes.parentId,
+        title: notes.title,
+        createdAt: notes.createdAt,
+        updatedAt: notes.updatedAt,
+      })
+      .from(notes)
+      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+    if (!note[0]) {
+      return Err(Errors.NOTE_NOT_FOUND(input.noteId));
+    }
+
+    const noteBlocks = await db
+      .select({
+        id: blocks.id,
+        type: blocks.type,
+        position: blocks.position,
+        contentJson: blocks.contentJson,
+        plainText: blocks.plainText,
+        createdAt: blocks.createdAt,
+        updatedAt: blocks.updatedAt,
+      })
+      .from(blocks)
+      .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
+      .orderBy(blocks.position, blocks.id);
+
+    return Ok({ note: note[0], blocks: noteBlocks });
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function renameNote(input: { userId: string; noteId: string; title: string }) {
+  try {
+    const updated = await db
+      .update(notes)
+      .set({ title: input.title, updatedAt: new Date() })
+      .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)))
+      .returning({ id: notes.id, title: notes.title });
+
+    if (!updated[0]) {
+      return Err(Errors.NOTE_NOT_FOUND(input.noteId));
+    }
+
+    return Ok({ note: updated[0] });
   } catch (e) {
     if (isAppError(e) && e.code !== "DB_ERROR") {
       return Err(e);

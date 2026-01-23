@@ -22,6 +22,14 @@ export const getNoteListSchema = z.object({
   cursor: z.string().optional(),
 });
 
+export const noteIdParamSchema = z.object({
+  id: z.uuid(),
+});
+
+export const updateNoteSchema = z.object({
+  title: noteTitleSchema,
+});
+
 export const blockTypeSchema = z.enum([
   "paragraph",
   "heading",

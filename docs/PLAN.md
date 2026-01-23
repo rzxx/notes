@@ -77,11 +77,11 @@ Build these route handlers:
 - `POST /api/notes`
   Create under `parentId` with unique naming (title collision -> “(2)” or “-2”) [done]
 
-- `GET /api/notes/:id`
+- `GET /api/notes/:id` [done]
   Note metadata + blocks (ordered)
 
-- `PUT /api/notes/:id`
-  For Phase 1: maybe just rename note or update blocks in a basic way
+- `PUT /api/notes/:id` [done]
+  Rename note (Phase 1 scope)
 
 - `DELETE /api/notes` [done]
 
@@ -188,7 +188,7 @@ To keep momentum, do these in order:
 
 1. Implement `moveNote()` server function (cycle check + closure updates) [done]
 2. Add `PUT /api/notes/:id/move` (or `/api/notes/move`) endpoint + wire schema [done]
-3. Add `GET /api/notes/:id` (metadata + blocks) and basic `PUT /api/notes/:id` (rename)
+3. Add `GET /api/notes/:id` (metadata + blocks) and basic `PUT /api/notes/:id` (rename) [done]
 4. Add client hooks: `useNotesChildren`, `useCreateNote`, `useMoveNote`, `useRenameNote`
 5. Replace the starter UI with a left-nav list that can create notes + move notes
 
