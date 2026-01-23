@@ -2,27 +2,24 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-type CreateNoteInput = {
+type DeleteNoteInput = {
+  noteId: string;
   parentId: string | null;
-  title: string;
 };
 
-type CreateNoteResponse = {
+type DeleteNoteResponse = {
   ok: true;
-  note: { id: string };
+  note: { deleted: boolean };
 };
 
-async function createNote(input: CreateNoteInput) {
+async function deleteNote(input: DeleteNoteInput) {
   const response = await fetch("/api/notes", {
-    method: "POST",
+    method: "DELETE",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      parentId: input.parentId ?? null,
-      title: input.title,
-    }),
+    body: JSON.stringify({ noteId: input.noteId }),
   });
 
-  const payload = (await response.json()) as CreateNoteResponse;
+  const payload = (await response.json()) as DeleteNoteResponse;
   if (!response.ok) {
     throw new Error(payload ? JSON.stringify(payload) : "Request failed");
   }
@@ -30,12 +27,15 @@ async function createNote(input: CreateNoteInput) {
   return payload;
 }
 
-export function useCreateNote() {
+export function useDeleteNote() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createNote,
+    mutationFn: deleteNote,
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["note", variables.noteId],
+      });
       queryClient.invalidateQueries({
         queryKey: ["notes-children", variables.parentId],
       });

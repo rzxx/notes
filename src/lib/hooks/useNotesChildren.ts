@@ -34,9 +34,9 @@ async function fetchNotesChildren(parentId?: string | null) {
   return payload;
 }
 
-export function useNotesChildren(parentId?: string | null) {
+export function useNotesChildren(parentId: string | null) {
   return useQuery({
-    queryKey: ["notes-children", parentId ?? null],
+    queryKey: ["notes-children", parentId],
     queryFn: () => fetchNotesChildren(parentId),
   });
 }

@@ -40,9 +40,9 @@ async function fetchNote(noteId: string) {
   return payload;
 }
 
-export function useNote(noteId?: string | null) {
+export function useNote(noteId: string | null) {
   return useQuery({
-    queryKey: ["note", noteId ?? null],
+    queryKey: ["note", noteId],
     queryFn: () => fetchNote(noteId as string),
     enabled: Boolean(noteId),
   });
