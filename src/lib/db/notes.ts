@@ -3,7 +3,7 @@ import { db } from "./drizzle";
 import { blocks, notes, noteClosure } from "./schema";
 import { eq, sql, and, desc, lt, or, isNull } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
-import { Errors, isAppError } from "@/lib/server/errors";
+import { Errors, isAppError } from "@/lib/errors";
 import { parseCursor } from "@/lib/server/utils";
 
 export async function createNote(input: {

@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { Errors, type AppError } from "@/lib/server/errors";
+import { Errors, type AppError } from "@/lib/errors";
 import { Result, Ok, Err } from "@/lib/result";
 
 export function safeParseToResult<T>(schema: z.ZodType<T>, data: unknown): Result<T, AppError> {

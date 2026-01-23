@@ -1,27 +1,11 @@
 import "server-only";
-import { z } from "zod";
-import type { $ZodError } from "zod/v4/core";
+import { Errors, isAppError, type AppError, type AppErrorCode } from "@/lib/errors";
+import { isInternalError, type InternalError } from "@/lib/server/internal-errors";
 
 type HttpErrorMeta = {
   status: number;
   message?: string;
 };
-
-// AppErrors definition. Point of truth for all application errors.
-// Important: Update constructors and HTTP mapping when adding new errors.
-export const AppErrorSchema = z.discriminatedUnion("code", [
-  z.object({ code: z.literal("NOTE_NOT_FOUND"), noteId: z.string() }),
-  z.object({ code: z.literal("FORBIDDEN") }),
-  z.object({ code: z.literal("DB_ERROR") }),
-  z.object({ code: z.literal("VALIDATION_ERROR"), issues: z.custom<$ZodError["issues"]>() }),
-  z.object({ code: z.literal("JSON_PARSE_ERROR"), message: z.unknown() }),
-  z.object({ code: z.literal("JSON_EMPTY_BODY") }),
-  z.object({ code: z.literal("UNSUPPORTED_CONTENT_TYPE"), contentType: z.string() }),
-  z.object({ code: z.literal("CURSOR_PARSE_ERROR") }),
-]);
-
-export type AppError = z.infer<typeof AppErrorSchema>;
-export type AppErrorCode = AppError["code"];
 
 // Internal mapping of errors to HTTP responses.
 const ERROR_HTTP_MAP = {
@@ -33,52 +17,36 @@ const ERROR_HTTP_MAP = {
   JSON_EMPTY_BODY: { status: 400 },
   UNSUPPORTED_CONTENT_TYPE: { status: 415 },
   CURSOR_PARSE_ERROR: { status: 400 },
+  RESPONSE_PARSE_ERROR: { status: 502 },
 } satisfies Record<AppErrorCode, HttpErrorMeta>;
 
-// Per-code constructor args for ergonomic error creation
-type ErrorCtorArgs<K extends AppErrorCode> =
-  // Add here when new error codes are added and need args
-  K extends "NOTE_NOT_FOUND"
-    ? [noteId: string]
-    : K extends "VALIDATION_ERROR"
-      ? [issues: $ZodError["issues"]]
-      : K extends "JSON_PARSE_ERROR"
-        ? [message: unknown]
-        : K extends "UNSUPPORTED_CONTENT_TYPE"
-          ? [contentType: string]
-          : [];
+export function sanitizeError(error: AppError | InternalError): AppError {
+  if (isAppError(error)) return error;
 
-// Mapping of error codes to their constructors
-type ErrorCtors = {
-  [K in AppErrorCode]: (...args: ErrorCtorArgs<K>) => Extract<AppError, { code: K }>;
-};
+  if (isInternalError(error)) {
+    switch (error.code) {
+      /* case "INTERNAL_RATE_LIMITED":
+        return Errors.DB_ERROR();
+      case "INTERNAL_DEPENDENCY_FAILURE":
+        return Errors.DB_ERROR();
+      case "INTERNAL_LOGIC_ERROR":
+        return Errors.DB_ERROR(); */
+      default: {
+        return Errors.DB_ERROR();
+      }
+    }
+  }
 
-// Constructors to create AppErrors
-export const Errors = {
-  NOTE_NOT_FOUND: (noteId: string) => ({ code: "NOTE_NOT_FOUND", noteId }),
-  FORBIDDEN: () => ({ code: "FORBIDDEN" }),
-  DB_ERROR: () => ({ code: "DB_ERROR" }),
-  VALIDATION_ERROR: (issues: $ZodError["issues"]) => ({ code: "VALIDATION_ERROR", issues }),
-  JSON_PARSE_ERROR: (message: unknown) => ({ code: "JSON_PARSE_ERROR", message }),
-  UNSUPPORTED_CONTENT_TYPE: (contentType: string) => ({
-    code: "UNSUPPORTED_CONTENT_TYPE",
-    contentType,
-  }),
-  JSON_EMPTY_BODY: () => ({ code: "JSON_EMPTY_BODY" }),
-  CURSOR_PARSE_ERROR: () => ({ code: "CURSOR_PARSE_ERROR" }),
-} satisfies ErrorCtors;
-
-// Type guard to check if an unknown value is an AppError
-export function isAppError(x: unknown): x is AppError {
-  return AppErrorSchema.safeParse(x).success;
+  return Errors.DB_ERROR();
 }
 
 // HTTP mapping
-export function appErrorToHttp(error: AppError) {
-  const meta = ERROR_HTTP_MAP[error.code];
+export function appErrorToHttp(error: AppError | InternalError) {
+  const publicError = sanitizeError(error);
+  const meta = ERROR_HTTP_MAP[publicError.code];
 
   return {
     status: meta.status,
-    body: error,
+    body: publicError,
   };
 }

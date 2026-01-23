@@ -5,11 +5,11 @@ import { appErrorToHttp } from "@/lib/server/errors";
 import { safeJsonParse, safeParseToResult } from "@/lib/server/utils";
 
 type RouteContext = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const parsed = safeParseToResult(noteIdParamSchema, await Promise.resolve(context.params));
+  const parsed = safeParseToResult(noteIdParamSchema, await context.params);
   const result = await andThenAsync(parsed, (data) =>
     getNoteById({ userId: process.env.STUB_USER_ID!, noteId: data.id }),
   );
@@ -23,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
-  const parsedParams = safeParseToResult(noteIdParamSchema, await Promise.resolve(context.params));
+  const parsedParams = safeParseToResult(noteIdParamSchema, await context.params);
   const parsedBody = await safeJsonParse(request, updateNoteSchema);
   const result = await andThenAsync(parsedParams, (params) =>
     andThenAsync(parsedBody, (body) =>
