@@ -146,6 +146,104 @@ export async function deleteNote(input: { userId: string; noteId: string }) {
   }
 }
 
+export async function moveNote(input: {
+  userId: string;
+  noteId: string;
+  newParentId: string | null;
+}) {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const existingNote = await tx
+        .select({ parentId: notes.parentId })
+        .from(notes)
+        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+      if (!existingNote[0]) {
+        throw Errors.NOTE_NOT_FOUND(input.noteId);
+      }
+
+      if (existingNote[0].parentId === input.newParentId) {
+        return { moved: false };
+      }
+
+      if (input.newParentId) {
+        const parentExists = await tx
+          .select({ id: notes.id })
+          .from(notes)
+          .where(and(eq(notes.userId, input.userId), eq(notes.id, input.newParentId)));
+
+        if (!parentExists[0]) {
+          throw Errors.NOTE_NOT_FOUND(input.newParentId);
+        }
+
+        const cycleCheck = await tx
+          .select({ ancestorId: noteClosure.ancestorId })
+          .from(noteClosure)
+          .where(
+            and(
+              eq(noteClosure.userId, input.userId),
+              eq(noteClosure.ancestorId, input.noteId),
+              eq(noteClosure.descendantId, input.newParentId),
+            ),
+          );
+
+        if (cycleCheck[0]) {
+          throw Errors.FORBIDDEN();
+        }
+      }
+
+      await tx
+        .update(notes)
+        .set({ parentId: input.newParentId })
+        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+      await tx.execute(sql`
+        DELETE FROM note_closure
+        WHERE user_id = ${input.userId}
+          AND descendant_id IN (
+            SELECT descendant_id
+            FROM note_closure
+            WHERE user_id = ${input.userId}
+              AND ancestor_id = ${input.noteId}
+          )
+          AND ancestor_id IN (
+            SELECT ancestor_id
+            FROM note_closure
+            WHERE user_id = ${input.userId}
+              AND descendant_id = ${input.noteId}
+              AND ancestor_id <> ${input.noteId}
+          )
+      `);
+
+      if (input.newParentId) {
+        await tx.execute(sql`
+          INSERT INTO note_closure (user_id, ancestor_id, descendant_id, depth)
+          SELECT
+            a.user_id,
+            a.ancestor_id,
+            d.descendant_id,
+            a.depth + d.depth + 1
+          FROM note_closure a
+          CROSS JOIN note_closure d
+          WHERE a.user_id = ${input.userId}
+            AND d.user_id = ${input.userId}
+            AND a.descendant_id = ${input.newParentId}
+            AND d.ancestor_id = ${input.noteId}
+        `);
+      }
+
+      return { moved: true };
+    });
+
+    return Ok(result);
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    return Err(Errors.DB_ERROR());
+  }
+}
+
 export async function rebuildClosure(input: { userId?: string }) {
   try {
     await db.transaction(async (tx) => {

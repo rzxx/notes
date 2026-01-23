@@ -6,11 +6,11 @@
 
 - App Router + TS strict + lint + CI
 - Server-only modules:
-  - `lib/db/drizzle.ts` (Drizzle + Postgres connection)
-  - `lib/db/notes.ts` (query functions used by route handlers)
+  - `lib/db/drizzle.ts` (Drizzle + Postgres connection) [done]
+  - `lib/db/notes.ts` (query functions used by route handlers) [done]
 
 - Client-only providers:
-  - `app/providers.tsx` (TanStack Query + Zustand)
+  - `app/providers.tsx` (TanStack Query + Zustand) [done]
 
 **Why:** sets clean “server vs client” walls so you don’t leak DB into client bundles.
 
@@ -20,16 +20,17 @@
 
 **Tables**
 
-- `notes`
-  - `id`, `userId` (stub for now), `parentId` nullable, `title`, `sortPosition`, timestamps
+- `notes` [done]
+  - `id`, `userId` (stub for now), `parentId` nullable, `title`, timestamps
   - constraint: `UNIQUE(user_id, parent_id, title)` (or `slug`)
+  - ordering: by `createdAt` (cursor pagination on `createdAt` + `id`)
 
-- `note_closure`
+- `note_closure` [done]
   - `userId`, `ancestorId`, `descendantId`, `depth`
   - PK: `(user_id, ancestor_id, descendant_id)`
   - indexes: `(user_id, ancestor_id)`, `(user_id, descendant_id)`
 
-- `blocks` (flat)
+- `blocks` (flat) [done]
   - `id`, `noteId`, `userId`, `type`, `position`, `contentJson` (jsonb), `plainText` (text), timestamps
   - index: `(note_id, position)`
 
@@ -37,8 +38,8 @@
 
 **Also add day-1 safety rails**
 
-- all note create/move/delete ops in transactions (because closure updates)
-- a “rebuild closure from parentId” script (your seatbelt)
+- all note create/move/delete ops in transactions (because closure updates) [done]
+- a “rebuild closure from parentId” script (your seatbelt) [done]
 
 ---
 
@@ -46,19 +47,20 @@
 
 Implement server functions (not API yet) for:
 
-- `createNote(parentId, title)`
+- `createNote(parentId, title)` [done]
   - insert note
   - insert closure rows:
     - self row (note, note, depth 0)
     - for each ancestor of parent: (ancestor -> note, depth+1)
 
-- `moveNote(noteId, newParentId)`
+- `moveNote(noteId, newParentId)` [done]
   - cycle check using closure
   - update `notes.parentId`
   - update closure rows for subtree (transaction)
 
-- `deleteNote(noteId)` (and its subtree?)
-  - decide behavior (most file trees delete subtree)
+- `deleteNote(noteId)` (current behavior: lift children) [done]
+  - reparent direct children to the deleted note’s parent
+  - adjust closure depths for lifted descendants
   - delete from notes (cascade) + closure rows (cascade)
 
 **Why:** do it before API so you can unit test it easily.
@@ -69,11 +71,11 @@ Implement server functions (not API yet) for:
 
 Build these route handlers:
 
-- `GET /api/notes?parentId=...&cursor=...`
+- `GET /api/notes?parentId=...&cursor=...` [done]
   List children of a folder (metadata only)
 
-- `POST /api/notes/create`
-  Create under `parentId` with unique naming (title collision -> “(2)” or “-2”)
+- `POST /api/notes`
+  Create under `parentId` with unique naming (title collision -> “(2)” or “-2”) [done]
 
 - `GET /api/notes/:id`
   Note metadata + blocks (ordered)
@@ -81,9 +83,9 @@ Build these route handlers:
 - `PUT /api/notes/:id`
   For Phase 1: maybe just rename note or update blocks in a basic way
 
-- `DELETE /api/notes/:id`
+- `DELETE /api/notes` [done]
 
-- `POST /api/notes/move` (or `PUT /api/notes/:id/move`)
+- `PUT /api/notes/move` [done]
   Move note by changing parentId (calls closure logic)
 
 Standardize error shape now.
@@ -184,10 +186,10 @@ This is where you’ll also likely want a “block closure table” _if_ you do 
 
 To keep momentum, do these in order:
 
-1. Implement `notes + note_closure` schema + migrations
-2. Implement `createNote()` + `rebuildClosure()` server functions
-3. Implement `GET children` + `POST create` API endpoints
-4. Add Query provider + `useNotesChildren` + `useCreateNote`
-5. Build left nav that can create a note under a folder and list children
+1. Implement `moveNote()` server function (cycle check + closure updates) [done]
+2. Add `PUT /api/notes/:id/move` (or `/api/notes/move`) endpoint + wire schema [done]
+3. Add `GET /api/notes/:id` (metadata + blocks) and basic `PUT /api/notes/:id` (rename)
+4. Add client hooks: `useNotesChildren`, `useCreateNote`, `useMoveNote`, `useRenameNote`
+5. Replace the starter UI with a left-nav list that can create notes + move notes
 
 Once that works, everything else becomes easier.
