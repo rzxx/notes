@@ -76,7 +76,7 @@ export async function deleteNote(input: {
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
       if (!parentId[0]) {
-        throw Errors.noteNotFound(input.noteId);
+        throw Err(Errors.NOTE_NOT_FOUND(input.noteId));
       }
 
       // 2) reparent children
@@ -127,7 +127,7 @@ export async function deleteNote(input: {
       return Err(e);
     }
     // Otherwise treat as internal/db failure (log e if you want)
-    return Err(Errors.db());
+    return Err(Errors.DB_ERROR());
   }
 }
 export async function rebuildClosure(input: { userId?: string }) {
