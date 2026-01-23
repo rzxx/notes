@@ -39,7 +39,7 @@ const eslintConfig = defineConfig([
     ".vercel/**",
     "*.tsbuildinfo",
     ".btca/**",
-    ".drizzle/**",
+    "drizzle/**",
   ]),
 ]);
 

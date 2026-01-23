@@ -25,7 +25,7 @@ export async function DELETE(request: Request) {
   const input = deleteNoteSchema.safeParse(body);
 
   if (!input.success) {
-    const { status, body } = toHttp(Errors.validation(input.error.issues));
+    const { status, body } = toHttp(Errors.validation(input.error));
     return Response.json(body, { status });
   }
 

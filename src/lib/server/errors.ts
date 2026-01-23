@@ -1,23 +1,29 @@
 import "server-only";
+import type { $ZodError } from "zod/v4/core";
 
 export type AppError =
   | { code: "NOTE_NOT_FOUND"; noteId: string }
   | { code: "FORBIDDEN" }
   | { code: "DB_ERROR" }
-  | { code: "VALIDATION_ERROR"; issues: unknown };
+  | { code: "VALIDATION_ERROR"; issues: $ZodError };
 
 export const Errors = {
   noteNotFound: (noteId: string): AppError => ({ code: "NOTE_NOT_FOUND", noteId }),
   forbidden: (): AppError => ({ code: "FORBIDDEN" }),
   db: (): AppError => ({ code: "DB_ERROR" }),
-  validation: (issues: unknown): AppError => ({ code: "VALIDATION_ERROR", issues }),
+  validation: (issues: $ZodError): AppError => ({ code: "VALIDATION_ERROR", issues }),
 } as const;
 
 export function isAppError(x: unknown): x is AppError {
   if (typeof x !== "object" || x === null) return false;
   if (!("code" in x)) return false;
   const code = (x as { code: unknown }).code;
-  return code === "NOTE_NOT_FOUND" || code === "FORBIDDEN" || code === "DB_ERROR";
+  return (
+    code === "NOTE_NOT_FOUND" ||
+    code === "FORBIDDEN" ||
+    code === "DB_ERROR" ||
+    code === "VALIDATION_ERROR"
+  );
 }
 
 function assertNever(x: never): never {
