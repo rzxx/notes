@@ -33,7 +33,7 @@ async function fetchNotesChildren(parentId?: string | null) {
 
 export function useNotesChildren(parentId: string | null) {
   return useQuery({
-    queryKey: ["notes-children", parentId],
+    queryKey: ["notes", parentId],
     queryFn: () => fetchNotesChildren(parentId),
   });
 }

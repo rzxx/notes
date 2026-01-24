@@ -36,5 +36,7 @@ UI wiring done
 
 Notes/gotchas
 
-- Mutation invalidations still target `notes-children` queries; tree pager uses `['notes', parentId]` and stays disabled-by-default, so create/move/delete won’t yet refresh the tree (planned to solve with optimistic upserts or aligned invalidations).
-- Bug 2 (tree not updating after create) remains; current changes only address expansion affordance and fetch gating. Keep `canExpand` logic—it will stay accurate after optimistic updates land.
+- Mutations are now fully optimistic via store actions: create injects a temp node and replaces it on success; delete removes immediately and restores from snapshot on error; move updates parents immediately and rolls back on error; rename writes optimistic title.
+- Added store `restoreNode` to reattach deleted nodes (with optional meta and index) for clean rollback.
+- Query keys/invalidation now aligned to `['notes', parentId]` to match the tree pager; we cancel/restore around optimistic steps instead of refetching.
+- Bug 2 (tree not updating after create) should be resolved by the optimistic upsert/invalidation alignment; keep an eye on server ordering vs. optimistic position.

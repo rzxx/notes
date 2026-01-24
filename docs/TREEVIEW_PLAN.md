@@ -45,9 +45,9 @@ Fetching/expansion flow
 
 Mutations
 
-- Create: optimistic temp id under parent; replace or remove on settle.
-- Delete: remove node; strip from parents/roots; invalidate that parent’s query to refresh paging flags.
-- Move: local move; optionally invalidate old/new parents to sync ordering from server.
+- Create: optimistic temp id under parent; replace or remove on settle (store-driven, no refetch requirement).
+- Delete: remove node optimistically; keep snapshot to restore on error; invalidate that parent’s query to refresh paging flags.
+- Move: local move; keep old parent/index to restore on error; invalidate old/new parents to sync ordering from server.
 
 Error handling
 

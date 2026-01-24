@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
+import { useTreeStore } from "@/lib/stores/tree";
 
 type DeleteNoteInput = {
   noteId: string;
@@ -29,12 +30,44 @@ export function useDeleteNote() {
 
   return useMutation({
     mutationFn: deleteNote,
-    onSuccess: (_data, variables) => {
+    onMutate: async (variables) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ["note", variables.noteId] }),
+        queryClient.cancelQueries({ queryKey: ["notes", variables.parentId] }),
+      ]);
+
+      const state = useTreeStore.getState();
+      const node = state.nodes[variables.noteId];
+      const meta = state.meta[variables.noteId];
+      const parentId = node?.parentId ?? variables.parentId ?? null;
+      const parentMeta = parentId === null ? null : state.meta[parentId];
+      const index =
+        parentId === null
+          ? state.rootIds.indexOf(variables.noteId)
+          : (parentMeta?.childrenIds.indexOf(variables.noteId) ?? -1);
+
+      state.removeNode(variables.noteId);
+
+      return node
+        ? {
+            snapshot: {
+              node,
+              meta,
+              parentId,
+              index,
+            },
+          }
+        : null;
+    },
+    onError: (_error, _variables, context) => {
+      if (!context?.snapshot) return;
+      const { node, meta, parentId, index } = context.snapshot;
+      useTreeStore.getState().restoreNode({ node, meta, parentId, index });
+    },
+    onSuccess: (_data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["note", variables.noteId] });
       queryClient.invalidateQueries({
-        queryKey: ["note", variables.noteId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["notes-children", variables.parentId],
+        queryKey: ["notes", context?.snapshot?.parentId ?? variables.parentId ?? null],
       });
     },
   });

@@ -38,6 +38,12 @@ type TreeActions = {
   moveNode: (id: string, newParentId: string | null, index?: number) => void;
   beginFetch: (parentId: string | null) => boolean;
   finishFetch: (parentId: string | null) => void;
+  restoreNode: (input: {
+    node: Note;
+    meta?: NodeMeta;
+    parentId: string | null;
+    index?: number;
+  }) => void;
 };
 
 const ROOT_KEY = "__root__";
@@ -178,6 +184,36 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
       produce(state, (draft) => {
         const key = parentKey(parentId);
         draft.inFlightByParent[key] = false;
+      }),
+    ),
+
+  restoreNode: ({ node, meta, parentId, index }) =>
+    set((state) =>
+      produce(state, (draft) => {
+        draft.nodes[node.id] = node;
+        if (meta) {
+          draft.meta[node.id] = meta;
+        }
+
+        const targetIndex = index ?? (parentId === null ? draft.rootIds.length : undefined);
+
+        if (parentId === null) {
+          draft.rootIds = draft.rootIds.filter((rootId) => rootId !== node.id);
+          const pos = Math.max(
+            0,
+            Math.min(targetIndex ?? draft.rootIds.length, draft.rootIds.length),
+          );
+          draft.rootIds.splice(pos, 0, node.id);
+          return;
+        }
+
+        const parentMeta = ensureMeta(draft.meta, parentId);
+        parentMeta.childrenIds = parentMeta.childrenIds.filter((childId) => childId !== node.id);
+        const pos = Math.max(
+          0,
+          Math.min(targetIndex ?? parentMeta.childrenIds.length, parentMeta.childrenIds.length),
+        );
+        parentMeta.childrenIds.splice(pos, 0, node.id);
       }),
     ),
 }));
