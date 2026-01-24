@@ -25,11 +25,31 @@ type TreeExplorerProps = {
 
 export function TreeExplorer({ selectedId, onSelect }: TreeExplorerProps) {
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const [parentLookup, setParentLookup] = React.useState<Map<string, string | null>>(new Map());
   const queryClient = useQueryClient();
 
   const rootQuery = useNotesChildrenInfinite(null, { enabled: true, limit: DEFAULT_LIMIT });
 
-  const expandedParents = React.useMemo(() => Array.from(expanded), [expanded]);
+  const visibleExpanded = React.useMemo(() => {
+    const visible = new Set<string>();
+
+    const isVisible = (id: string) => {
+      let current = parentLookup.get(id);
+      while (current) {
+        if (!expanded.has(current)) return false;
+        current = parentLookup.get(current);
+      }
+      return true;
+    };
+
+    expanded.forEach((id) => {
+      if (isVisible(id)) visible.add(id);
+    });
+
+    return visible;
+  }, [expanded, parentLookup]);
+
+  const expandedParents = React.useMemo(() => Array.from(visibleExpanded), [visibleExpanded]);
 
   const childrenQueries = useQueries({
     queries: expandedParents.map((parentId) => ({
@@ -48,13 +68,15 @@ export function TreeExplorer({ selectedId, onSelect }: TreeExplorerProps) {
     combine: (results) => results as unknown as UseInfiniteQueryResult<NotesListResponse>[],
   });
 
+  const childrenQueryVersion = childrenQueries.map((query) => query.dataUpdatedAt).join("|");
+
   const childQueryMap = React.useMemo(() => {
     const map = new Map<string, UseInfiniteQueryResult<NotesListResponse>>();
     expandedParents.forEach((parentId, index) => {
       map.set(parentId, childrenQueries[index] as UseInfiniteQueryResult<NotesListResponse>);
     });
     return map;
-  }, [childrenQueries, expandedParents]);
+  }, [childrenQueries, expandedParents, childrenQueryVersion]);
 
   const addNodes = (nodes: Record<string, TreeNodeMeta>, list?: NotesListItem[]) => {
     list?.forEach((item) => {
@@ -110,8 +132,10 @@ export function TreeExplorer({ selectedId, onSelect }: TreeExplorerProps) {
     return { lookup, nodes, rootIds };
   }, [
     childQueryMap,
+    childrenQueryVersion,
     expandedParents,
     rootQuery.data,
+    rootQuery.dataUpdatedAt,
     rootQuery.error,
     rootQuery.isFetching,
     rootQuery.isFetchingNextPage,
@@ -122,6 +146,27 @@ export function TreeExplorer({ selectedId, onSelect }: TreeExplorerProps) {
     nodes,
     rootIds,
   } = React.useMemo(() => buildChildrenPages(), [buildChildrenPages]);
+
+  React.useEffect(() => {
+    const nodeValues = Object.values(nodes);
+    if (nodeValues.length === 0) return;
+
+    setParentLookup((prev) => {
+      let updated = prev;
+      let changed = false;
+
+      nodeValues.forEach((node) => {
+        const currentParent = updated.get(node.id);
+        if (currentParent !== node.parentId) {
+          if (!changed) updated = new Map(updated);
+          updated.set(node.id, node.parentId);
+          changed = true;
+        }
+      });
+
+      return changed ? updated : prev;
+    });
+  }, [nodes]);
 
   const rows = React.useMemo(
     () => flattenTreeRows({ rootIds, nodes, expanded, childrenPages }),

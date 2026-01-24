@@ -33,6 +33,7 @@ export function useCreateNote() {
   return useMutation({
     mutationFn: createNote,
     onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["notes-children"] });
       queryClient.invalidateQueries({
         queryKey: ["notes-children", variables.parentId],
       });
