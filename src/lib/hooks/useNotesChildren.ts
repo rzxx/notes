@@ -23,7 +23,7 @@ type FetchNotesChildrenInput = {
   limit?: number;
 };
 
-async function fetchNotesChildren(input: FetchNotesChildrenInput = {}) {
+export async function fetchNotesChildren(input: FetchNotesChildrenInput = {}) {
   const params = new URLSearchParams();
   const { parentId, cursor, limit } = input;
   if (parentId) params.set("parentId", parentId);

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import TreeExplorer from "@/components/tree/TreeExplorer";
 import { useNotesChildren } from "@/lib/hooks/useNotesChildren";
 import { useCreateNote } from "@/lib/hooks/useCreateNote";
 import { useNote } from "@/lib/hooks/useNote";
@@ -59,6 +60,10 @@ export default function Home() {
           <h1 className="text-2xl font-semibold">Notes demo</h1>
           <p className="text-sm text-zinc-600">Root list + create note hook example.</p>
         </header>
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-4">
+          <TreeExplorer />
+        </section>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-4">
           <div className="flex items-center gap-3">
