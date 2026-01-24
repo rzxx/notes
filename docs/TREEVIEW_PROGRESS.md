@@ -8,8 +8,7 @@ What’s implemented
 
 How to use with TanStack Query
 
-- One infinite query per parentId, key: ["notes", parentId]. Before fetchNextPage, call beginFetch(parentId); if it returns false, skip to avoid duplicate fetch. In onSuccess, call upsertNodes(parentId, page.notes, { hasMore, nextCursor }). In onSettled, call finishFetch(parentId).
-- Invalidate locally: queryClient.invalidateQueries(["notes", parentId]) rather than nuking root; merge keeps existing children.
+- One infinite query per parentId, key: ["notes", parentId]. Use beginFetch(parentId) to gate fetch start; first load uses refetch (enabled: false), subsequent loads use fetchNextPage. Since v5 dropped query callbacks, upsertNodes runs inside a useEffect watching query.data.pages, and finishFetch runs when fetchStatus transitions off "fetching". getNextPageParam reads nextCursor. Invalidate locally via queryClient.invalidateQueries(["notes", parentId]).
 
 Dangling handling
 
@@ -22,5 +21,9 @@ Rendering
 Notes/considerations
 
 - Ordering is preserved by arrival order; if server adds position, sort before append. appendUnique avoids duplicates but keeps existing ordering.
-- Expansion/fetch flow: toggleExpanded, and on expand when childrenIds are empty or hasMore is true, trigger fetchNextPage (guarded by beginFetch). Expansion state persists across refetches.
+- Expansion/fetch flow: toggleExpanded, and on expand when childrenIds are empty or hasMore is true, trigger requestNext (beginFetch + refetch/fetchNextPage). Expansion state persists across refetches.
 - Optimistic ops: create inserts temp node under parent; delete removes and invalidate parent; move updates parents locally then optionally invalidate both parents.
+
+UI wiring done
+
+- Added useTreePager hook (gated fetch, upsert via effect, finishFetch via fetchStatus) and TreeView component that renders buildFlat rows with expansion toggles and load-more rows. Root auto-fetches once; load-more buttons disabled while fetching. Dangling bucket count surfaces via badge + console.warn to spot API ordering issues.

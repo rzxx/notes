@@ -7,6 +7,7 @@ import { useNote } from "@/lib/hooks/useNote";
 import { useRenameNote } from "@/lib/hooks/useRenameNote";
 import { useMoveNote } from "@/lib/hooks/useMoveNote";
 import { useDeleteNote } from "@/lib/hooks/useDeleteNote";
+import { TreeView } from "@/components/TreeView";
 
 export default function Home() {
   const [title, setTitle] = React.useState("");
@@ -59,6 +60,8 @@ export default function Home() {
           <h1 className="text-2xl font-semibold">Notes demo</h1>
           <p className="text-sm text-zinc-600">Root list + create note hook example.</p>
         </header>
+
+        <TreeView />
 
         <section className="rounded-lg border border-zinc-200 bg-white p-4">
           <div className="flex items-center gap-3">
