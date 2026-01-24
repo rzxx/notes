@@ -5,7 +5,7 @@ What’s implemented
 - Normalized state: nodes table, per-node meta (childrenIds, isExpanded, hasMore, nextCursor), rootIds + root pagination, in-flight flags per parent, and danglingByParent bucket for children whose parent is not yet loaded.
 - Actions: upsertNodes merges pages into the store (attaches any dangling children when their parent arrives), toggleExpanded flips UI state, moveNode updates parent/ordering, removeNode prunes nodes/refs, beginFetch/finishFetch gate one in-flight fetch per parentId (including root via **root**).
 - Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root). TreeView now selects stable slices and wraps buildFlat in a useMemo to keep the derived array referentially stable (fixes React 19 hydration complaining about uncached getServerSnapshot and the resulting update loop).
-- Note shape now includes `hasChildren`; upsertNodes preserves it so the UI can gate expansion without waiting for a fetch.
+- Note shape now includes `hasChildren` and `createdAt`; upsertNodes preserves both so the UI can gate expansion without waiting for a fetch and so ordering can be derived client-side.
 
 How to use with TanStack Query
 
@@ -25,7 +25,7 @@ Rendering
 
 Notes/considerations
 
-- Ordering is preserved by arrival order; if server adds position, sort before append. appendUnique avoids duplicates but keeps existing ordering.
+- Ordering now uses `createdAt` desc with `id` tiebreak. mergeSortedIds keeps `rootIds` and per-parent `childrenIds` sorted in the store; upsert detaches a node from any prior parent when its parentId changes (avoids duplicate keys after moves/invalidation). If server ever returns position, swap comparator.
 - Expansion/fetch flow: toggleExpanded, and on expand when childrenIds are empty or hasMore is true, trigger requestNext (beginFetch + refetch/fetchNextPage). Expansion state persists across refetches.
 - Optimistic ops: create inserts temp node under parent; delete removes and invalidate parent; move updates parents locally then optionally invalidate both parents.
 
@@ -40,3 +40,10 @@ Notes/gotchas
 - Added store `restoreNode` to reattach deleted nodes (with optional meta and index) for clean rollback.
 - Query keys/invalidation now aligned to `['notes', parentId]` to match the tree pager; we cancel/restore around optimistic steps instead of refetching.
 - Bug 2 (tree not updating after create) should be resolved by the optimistic upsert/invalidation alignment; keep an eye on server ordering vs. optimistic position.
+
+Implementation updates / gotchas
+
+- Optimistic create stamps `createdAt` (server timestamp on success) so new items sort correctly.
+- move/restore ignore the optional index and rely on sorted merge to keep order consistent.
+- upsert detaches nodes from their previous parent/root when parentId changes, preventing duplicate IDs from appearing under both parents after fetches.
+- InfiniteQuery `getNextPageParam` now guards `lastPage` to avoid undefined access during initial optimistic render.

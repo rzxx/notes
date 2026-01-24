@@ -40,7 +40,7 @@ export function useTreePager(parentId: string | null) {
     queryKey: ["notes", parentId],
     queryFn: ({ pageParam }) => fetchNotesPage(parentId, pageParam ?? null),
     initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     enabled: false,
     refetchOnMount: false,
   });

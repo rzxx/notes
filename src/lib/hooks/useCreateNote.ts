@@ -11,7 +11,7 @@ type CreateNoteInput = {
 
 type CreateNoteResponse = {
   ok: true;
-  note: { id: string };
+  note: { id: string; createdAt: string };
 };
 
 async function createNote(input: CreateNoteInput) {
@@ -42,6 +42,7 @@ export function useCreateNote() {
           : Math.random().toString(16).slice(2)
       }`;
       const state = useTreeStore.getState();
+      const createdAt = new Date().toISOString();
 
       const pagination =
         variables.parentId === null ? state.rootPagination : state.meta[variables.parentId];
@@ -54,6 +55,7 @@ export function useCreateNote() {
             parentId: variables.parentId,
             title: variables.title,
             hasChildren: false,
+            createdAt,
           },
         ],
         { hasMore: pagination?.hasMore ?? false, nextCursor: pagination?.nextCursor ?? null },
@@ -63,7 +65,7 @@ export function useCreateNote() {
         state.toggleExpanded(variables.parentId, true);
       }
 
-      return { tempId };
+      return { tempId, createdAt };
     },
     onError: (_error, _variables, context) => {
       if (context?.tempId) {
@@ -88,6 +90,7 @@ export function useCreateNote() {
             parentId: variables.parentId,
             title: variables.title,
             hasChildren: false,
+            createdAt: data.note.createdAt ?? context?.createdAt ?? new Date().toISOString(),
           },
         ],
         { hasMore: pagination?.hasMore ?? false, nextCursor: pagination?.nextCursor ?? null },

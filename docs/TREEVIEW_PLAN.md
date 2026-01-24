@@ -4,7 +4,7 @@ Goals: virtualizable tree UI from incremental (paginated) per-parent fetches; si
 
 Data model
 
-- Note: `{ id, parentId, title, hasChildren, ... }`
+- Note: `{ id, parentId, title, createdAt, hasChildren, ... }`
 - Meta: `{ childrenIds: string[]; isExpanded: boolean; hasMore: boolean; nextCursor: string | null }`
 - Store shape: `{ nodes: Record<id, Note>; meta: Record<id, Meta>; rootIds: string[]; danglingByParent: Record<id, string[]> }`
 - Derive flat list; never store it. Each row: `node` (id, depth) or `loadMore` (parentId, depth). Memoize the derived list (selector-level or via `useMemo` on stable slices) so React 19 hydration doesn’t see changing snapshots.
@@ -12,15 +12,15 @@ Data model
 State management
 
 - Zustand + mutative for readable immutable updates.
-- Helpers: `ensureMeta`, `appendUnique`. Order follows server arrival; no position field.
+- Helpers: `ensureMeta`, `mergeSortedIds`, `detachFromParent`. Order is derived from `createdAt` desc with `id` tiebreak; children/root ids stay sorted in store.
 - One in-flight fetch per parent to prevent double-appends/races.
 
 Core actions
 
-- `upsertNodes(parentId, notes[], { hasMore, nextCursor })`: merge/replace node data; append unique child ids to the parent (or rootIds); set paging flags. If parent missing and parentId != null, stash child ids in `danglingByParent[parentId]` instead of rendering.
+- `upsertNodes(parentId, notes[], { hasMore, nextCursor })`: merge/replace node data; detach from prior parent if parentId changes; merge child/root ids via sorted set; set paging flags. If parent missing and parentId != null, stash child ids in `danglingByParent[parentId]` instead of rendering.
 - `toggleExpanded(id, expanded?)`: flip/set expansion; components decide whether to fetch when expanding.
 - `removeNode(id)`: delete node/meta; remove id from any parent childrenIds and rootIds.
-- `moveNode(id, newParentId, index?)`: update parentId; remove from old parent/roots; insert into new parent/roots at index (default append); ensure new parent is expanded.
+- `moveNode(id, newParentId, index?)`: update parentId; remove from old parent/roots; insert into new parent/roots via sorted merge (createdAt order); ensure new parent is expanded.
 
 Dangling handling
 

@@ -33,7 +33,7 @@ export async function createNote(input: {
           parentId: input.parentId ?? null,
           title: input.title,
         })
-        .returning({ id: notes.id });
+        .returning({ id: notes.id, createdAt: notes.createdAt });
 
       // sanity check
       if (!insertedNote[0]) throw Errors.DB_ERROR();
@@ -70,7 +70,7 @@ export async function createNote(input: {
       return insertedNote[0];
     });
 
-    return Ok({ id: result.id });
+    return Ok({ id: result.id, createdAt: result.createdAt });
   } catch (e) {
     // If we threw our own AppError, preserve it
     if (isAppError(e) && e.code !== "DB_ERROR") {

@@ -49,6 +49,7 @@ export function useRenameNote() {
             parentId,
             title: variables.title,
             hasChildren: false,
+            createdAt: new Date().toISOString(),
           };
 
       state.upsertNodes(parentId, [optimistic], {
