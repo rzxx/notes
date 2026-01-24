@@ -7,6 +7,7 @@ type Note = {
   id: string;
   parentId: string | null;
   title: string;
+  hasChildren: boolean;
 };
 
 type NodeMeta = {

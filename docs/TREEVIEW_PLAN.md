@@ -4,7 +4,7 @@ Goals: virtualizable tree UI from incremental (paginated) per-parent fetches; si
 
 Data model
 
-- Note: `{ id, parentId, title, ... }`
+- Note: `{ id, parentId, title, hasChildren, ... }`
 - Meta: `{ childrenIds: string[]; isExpanded: boolean; hasMore: boolean; nextCursor: string | null }`
 - Store shape: `{ nodes: Record<id, Note>; meta: Record<id, Meta>; rootIds: string[]; danglingByParent: Record<id, string[]> }`
 - Derive flat list; never store it. Each row: `node` (id, depth) or `loadMore` (parentId, depth). Memoize the derived list (selector-level or via `useMemo` on stable slices) so React 19 hydration doesn’t see changing snapshots.
@@ -40,7 +40,7 @@ TanStack Query wiring
 
 Fetching/expansion flow
 
-- On expand: set `isExpanded=true`; if children empty or `hasMore` and no in-flight fetch, call `fetchNextPage` for that parent.
+- On expand: set `isExpanded=true`; if children empty or `hasMore` and no in-flight fetch, call `fetchNextPage` for that parent. Use server-provided `hasChildren` to gate expansion/fetch so leaf nodes don’t trigger pointless calls.
 - Load-more sentinel uses IntersectionObserver; disabled while `isFetchingNextPage` to avoid double fetch.
 
 Mutations

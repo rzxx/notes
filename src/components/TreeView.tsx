@@ -88,8 +88,13 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
 
   const isExpanded = meta?.isExpanded ?? false;
   const childCount = meta?.childrenIds.length ?? 0;
+  const canExpand = Boolean(node.hasChildren || meta?.hasMore || childCount > 0);
+  const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
+  const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
 
   const handleToggle = () => {
+    if (!canExpand) return;
+
     const next = !isExpanded;
     toggleExpanded(row.id, next);
 
@@ -104,11 +109,13 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
       style={{ paddingLeft: row.depth * 16 + 12 }}
     >
       <button
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
         onClick={handleToggle}
+        disabled={!canExpand}
+        title={expandTitle}
         type="button"
       >
-        {isExpanded ? "−" : "+"}
+        {expandSymbol}
       </button>
 
       <div className="flex flex-1 flex-col">
@@ -120,7 +127,9 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
       </div>
 
       <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-        <span>{childCount} children</span>
+        <span>
+          {childCount > 0 ? `${childCount} children` : canExpand ? "Has children" : "No children"}
+        </span>
         {meta?.hasMore ? (
           <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px]">More</span>
         ) : null}
