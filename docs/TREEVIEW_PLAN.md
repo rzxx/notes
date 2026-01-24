@@ -7,7 +7,7 @@ Data model
 - Note: `{ id, parentId, title, ... }`
 - Meta: `{ childrenIds: string[]; isExpanded: boolean; hasMore: boolean; nextCursor: string | null }`
 - Store shape: `{ nodes: Record<id, Note>; meta: Record<id, Meta>; rootIds: string[]; danglingByParent: Record<id, string[]> }`
-- Derive flat list; never store it. Each row: `node` (id, depth) or `loadMore` (parentId, depth).
+- Derive flat list; never store it. Each row: `node` (id, depth) or `loadMore` (parentId, depth). Memoize the derived list (selector-level or via `useMemo` on stable slices) so React 19 hydration doesn’t see changing snapshots.
 
 State management
 

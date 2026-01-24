@@ -5,7 +5,14 @@ import { useTreePager } from "@/lib/hooks/useTreePager";
 import { buildFlat, type FlatRow, useTreeStore } from "@/lib/stores/tree";
 
 export function TreeView() {
-  const rows = useTreeStore((state) => buildFlat(state));
+  const rootIds = useTreeStore((state) => state.rootIds);
+  const meta = useTreeStore((state) => state.meta);
+  const rootPagination = useTreeStore((state) => state.rootPagination);
+
+  const rows = React.useMemo(
+    () => buildFlat({ rootIds, meta, rootPagination }),
+    [rootIds, meta, rootPagination],
+  );
   const danglingCount = useTreeStore((state) => Object.keys(state.danglingByParent).length);
 
   const {

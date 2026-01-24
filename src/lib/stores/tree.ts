@@ -188,7 +188,9 @@ type LoadMoreRow = { kind: "loadMore"; parentId: string | null; depth: number };
 
 export type FlatRow = NodeRow | LoadMoreRow;
 
-export function buildFlat(state: TreeState): FlatRow[] {
+export function buildFlat(
+  state: Pick<TreeState, "meta" | "rootIds" | "rootPagination">,
+): FlatRow[] {
   const out: FlatRow[] = [];
 
   const walk = (id: string, depth: number) => {

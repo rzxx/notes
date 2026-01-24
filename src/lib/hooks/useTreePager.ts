@@ -57,7 +57,7 @@ export function useTreePager(parentId: string | null) {
   const isFetching = query.fetchStatus === "fetching" || query.isFetchingNextPage;
 
   React.useEffect(() => {
-    if (!query.data) return;
+    if (!query.data?.pages) return;
 
     query.data.pages.forEach((page) => {
       upsertNodes(parentId, page.notes, {
@@ -65,7 +65,7 @@ export function useTreePager(parentId: string | null) {
         nextCursor: page.nextCursor,
       });
     });
-  }, [parentId, query.data, upsertNodes]);
+  }, [parentId, query.data?.pages, upsertNodes]);
 
   const previousFetchStatus = React.useRef(query.fetchStatus);
 

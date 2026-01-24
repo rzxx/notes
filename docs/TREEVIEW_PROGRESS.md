@@ -4,11 +4,15 @@ What’s implemented
 
 - Normalized state: nodes table, per-node meta (childrenIds, isExpanded, hasMore, nextCursor), rootIds + root pagination, in-flight flags per parent, and danglingByParent bucket for children whose parent is not yet loaded.
 - Actions: upsertNodes merges pages into the store (attaches any dangling children when their parent arrives), toggleExpanded flips UI state, moveNode updates parent/ordering, removeNode prunes nodes/refs, beginFetch/finishFetch gate one in-flight fetch per parentId (including root via **root**).
-- Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root).
+- Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root). TreeView now selects stable slices and wraps buildFlat in a useMemo to keep the derived array referentially stable (fixes React 19 hydration complaining about uncached getServerSnapshot and the resulting update loop).
 
 How to use with TanStack Query
 
-- One infinite query per parentId, key: ["notes", parentId]. Use beginFetch(parentId) to gate fetch start; first load uses refetch (enabled: false), subsequent loads use fetchNextPage. Since v5 dropped query callbacks, upsertNodes runs inside a useEffect watching query.data.pages, and finishFetch runs when fetchStatus transitions off "fetching". getNextPageParam reads nextCursor. Invalidate locally via queryClient.invalidateQueries(["notes", parentId]).
+- One infinite query per parentId, key: ["notes", parentId]. Use beginFetch(parentId) to gate fetch start; first load uses refetch (enabled: false), subsequent loads use fetchNextPage. Since v5 dropped query callbacks, upsertNodes runs inside a useEffect watching query.data?.pages (avoid reruns on unrelated query state), and finishFetch runs when fetchStatus transitions off "fetching". getNextPageParam reads nextCursor. Invalidate locally via queryClient.invalidateQueries(["notes", parentId]).
+
+Important notes
+
+- React 19 hydration calls getServerSnapshot twice; if the selector returns a new array each time, React throws "The result of getServerSnapshot should be cached" and can trigger a max-depth loop. Keep derived flat rows referentially stable (memoized selector or useMemo on stable slices) to prevent this.
 
 Dangling handling
 
