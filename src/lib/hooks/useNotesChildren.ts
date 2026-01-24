@@ -8,7 +8,7 @@ type NotesListItem = {
   parentId: string | null;
   title: string;
   createdAt: string;
-  updatedAt: string;
+  hasChildren: boolean;
 };
 
 type NotesListResponse = {

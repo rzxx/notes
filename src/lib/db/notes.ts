@@ -318,7 +318,13 @@ export async function getNotesList(input: {
         parentId: notes.parentId,
         title: notes.title,
         createdAt: notes.createdAt,
-        updatedAt: notes.updatedAt,
+        hasChildren: sql<boolean>`exists (
+          select 1
+          from ${noteClosure}
+          where ${noteClosure.userId} = ${notes.userId}
+            and ${noteClosure.ancestorId} = ${notes.id}
+            and ${noteClosure.depth} = 1
+        )`.mapWith(Boolean),
       })
       .from(notes)
       .where(

@@ -96,7 +96,15 @@ export default function Home() {
           <ul className="mt-3 space-y-2">
             {notesQuery.data?.notes?.map((note) => (
               <li key={note.id} className="rounded-md border border-zinc-200 px-3 py-2 text-sm">
-                {note.title} - {note.id}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-zinc-900">{note.title}</span>
+                  {note.hasChildren ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      Has children
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-1 text-[11px] text-zinc-500">{note.id}</div>
               </li>
             ))}
           </ul>
