@@ -9,10 +9,11 @@ type TreeListProps = {
   rows: TreeRow[];
   onToggle: (id: string) => void;
   onLoadMore: (parentId: string | null) => void;
+  onSelect: (id: string) => void;
   selectedId?: string | null;
 };
 
-export function TreeList({ rows, onToggle, onLoadMore, selectedId }: TreeListProps) {
+export function TreeList({ rows, onToggle, onLoadMore, onSelect, selectedId }: TreeListProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white text-zinc-900 shadow-sm">
       <div className="divide-y divide-zinc-100">
@@ -23,6 +24,7 @@ export function TreeList({ rows, onToggle, onLoadMore, selectedId }: TreeListPro
                 key={row.id}
                 row={row}
                 onToggle={onToggle}
+                onSelect={onSelect}
                 isSelected={selectedId === row.id}
               />
             );

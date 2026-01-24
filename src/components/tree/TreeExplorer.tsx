@@ -18,9 +18,13 @@ import TreeList from "./TreeList";
 
 const DEFAULT_LIMIT = 50;
 
-export function TreeExplorer() {
+type TreeExplorerProps = {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+};
+
+export function TreeExplorer({ selectedId, onSelect }: TreeExplorerProps) {
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const rootQuery = useNotesChildrenInfinite(null, { enabled: true, limit: DEFAULT_LIMIT });
@@ -77,6 +81,7 @@ export function TreeExplorer() {
       pages: rootPages.map((page) => page.notes),
       nextCursor: rootNextCursor,
       isLoading: rootQuery.isFetching || rootQuery.isFetchingNextPage,
+      isError: Boolean(rootQuery.error),
     });
     rootPages.forEach((page) => addNodes(nodes, page.notes));
 
@@ -94,6 +99,7 @@ export function TreeExplorer() {
         pages: pages.map((page) => page.notes),
         nextCursor,
         isLoading: Boolean(query?.isFetching || query?.isFetchingNextPage),
+        isError: Boolean(query?.error),
       });
 
       pages.forEach((page) => addNodes(nodes, page.notes));
@@ -106,6 +112,7 @@ export function TreeExplorer() {
     childQueryMap,
     expandedParents,
     rootQuery.data,
+    rootQuery.error,
     rootQuery.isFetching,
     rootQuery.isFetchingNextPage,
   ]);
@@ -151,18 +158,23 @@ export function TreeExplorer() {
         }
         return next;
       });
-      setSelectedId(id);
+      onSelect(id);
     },
-    [prefetchChildren],
+    [onSelect, prefetchChildren],
   );
 
   const handleLoadMore = React.useCallback(
     (parentId: string | null) => {
       if (parentId === null) {
-        rootQuery.fetchNextPage();
+        if (rootQuery.hasNextPage && !rootQuery.isFetchingNextPage) {
+          rootQuery.fetchNextPage();
+        }
         return;
       }
-      childQueryMap.get(parentId)?.fetchNextPage();
+      const query = childQueryMap.get(parentId);
+      if (query?.hasNextPage && !query.isFetchingNextPage) {
+        query.fetchNextPage();
+      }
     },
     [childQueryMap, rootQuery],
   );
@@ -182,6 +194,7 @@ export function TreeExplorer() {
         rows={rows}
         onToggle={handleToggle}
         onLoadMore={handleLoadMore}
+        onSelect={onSelect}
         selectedId={selectedId}
       />
     </div>

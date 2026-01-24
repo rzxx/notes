@@ -7,25 +7,27 @@ import TreeListItem from "./TreeListItem";
 type TreeNodeRowProps = {
   row: TreeNodeRowType;
   onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
   isSelected?: boolean;
 };
 
-export function TreeNodeRow({ row, onToggle, isSelected }: TreeNodeRowProps) {
-  const handleToggle = React.useCallback(() => {
+export function TreeNodeRow({ row, onToggle, onSelect, isSelected }: TreeNodeRowProps) {
+  const handlePress = React.useCallback(() => {
+    onSelect(row.id);
     if (row.hasChildren) onToggle(row.id);
-  }, [onToggle, row.hasChildren, row.id]);
+  }, [onSelect, onToggle, row.hasChildren, row.id]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      handleToggle();
+      handlePress();
     }
   };
 
   return (
     <button
       type="button"
-      onClick={handleToggle}
+      onClick={handlePress}
       onKeyDown={handleKeyDown}
       className="w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
       aria-expanded={row.hasChildren ? row.isExpanded : undefined}

@@ -12,7 +12,7 @@ export function LoadMoreRow({ row, onLoadMore }: LoadMoreRowProps) {
   const buttonRef = React.useRef<HTMLButtonElement | null>(null);
 
   React.useEffect(() => {
-    if (!buttonRef.current || row.isLoading) return;
+    if (!buttonRef.current || row.isLoading || row.isError) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -25,7 +25,7 @@ export function LoadMoreRow({ row, onLoadMore }: LoadMoreRowProps) {
 
     observer.observe(buttonRef.current);
     return () => observer.disconnect();
-  }, [onLoadMore, row.isLoading, row.parentId]);
+  }, [onLoadMore, row.isError, row.isLoading, row.parentId]);
 
   const handleClick = () => {
     if (!row.isLoading && row.hasMore) {
@@ -48,11 +48,14 @@ export function LoadMoreRow({ row, onLoadMore }: LoadMoreRowProps) {
               className="inline-block h-3 w-3 animate-spin rounded-full border border-zinc-300 border-t-zinc-500"
               aria-hidden
             />
+          ) : row.isError ? (
+            <span className="inline-block h-3 w-3 rounded-full border border-red-400" aria-hidden />
           ) : (
             ""
           )}
         </span>
-        <span>{row.isLoading ? "Loading more..." : "Load more"}</span>
+        <span>{row.isError ? "Retry" : row.isLoading ? "Loading more..." : "Load more"}</span>
+        {row.isError ? <span className="ml-2 text-[11px] text-red-600">Error loading</span> : null}
       </button>
     </div>
   );

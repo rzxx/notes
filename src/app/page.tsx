@@ -12,6 +12,7 @@ import { useDeleteNote } from "@/lib/hooks/useDeleteNote";
 export default function Home() {
   const [title, setTitle] = React.useState("");
   const [noteId, setNoteId] = React.useState("");
+  const [selectedTreeId, setSelectedTreeId] = React.useState<string | null>(null);
   const [renameId, setRenameId] = React.useState("");
   const [renameTitle, setRenameTitle] = React.useState("");
   const [renameParentId, setRenameParentId] = React.useState("");
@@ -62,7 +63,13 @@ export default function Home() {
         </header>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-4">
-          <TreeExplorer />
+          <TreeExplorer
+            selectedId={selectedTreeId}
+            onSelect={(id) => {
+              setSelectedTreeId(id);
+              setNoteId(id);
+            }}
+          />
         </section>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-4">

@@ -9,6 +9,7 @@ export type ParentChildrenPages = {
   pages?: TreeNodeMeta[][];
   nextCursor?: string | null;
   isLoading?: boolean;
+  isError?: boolean;
 };
 
 export type ChildrenPagesLookup =
@@ -31,6 +32,7 @@ export type LoadMoreRow = {
   depth: number;
   isLoading: boolean;
   hasMore: boolean;
+  isError?: boolean;
 };
 
 export type TreeRow = TreeNodeRow | LoadMoreRow;
@@ -57,6 +59,7 @@ type StackItem =
       depth: number;
       isLoading: boolean;
       hasMore: boolean;
+      isError?: boolean;
     };
 
 export function flattenTreeRows(input: {
@@ -81,6 +84,7 @@ export function flattenTreeRows(input: {
           depth: current.depth,
           hasMore: true,
           isLoading: current.isLoading,
+          isError: current.isError,
         });
       }
       continue;
@@ -116,6 +120,7 @@ export function flattenTreeRows(input: {
         depth: current.depth + 1,
         hasMore: true,
         isLoading: Boolean(childEntry?.isLoading),
+        isError: Boolean(childEntry?.isError),
       });
     }
 
