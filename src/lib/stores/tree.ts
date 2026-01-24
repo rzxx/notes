@@ -79,13 +79,11 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
         });
 
         const ids = notes.map((note) => note.id);
-        const key = parentKey(parentId);
 
         if (parentId === null) {
           appendUnique(draft.rootIds, ids);
           draft.rootPagination.hasMore = page.hasMore;
           draft.rootPagination.nextCursor = page.nextCursor;
-          draft.inFlightByParent[key] = false;
           return;
         }
 
@@ -93,7 +91,6 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
           const bucket = draft.danglingByParent[parentId] ?? [];
           appendUnique(bucket, ids);
           draft.danglingByParent[parentId] = bucket;
-          draft.inFlightByParent[key] = false;
           return;
         }
 
@@ -101,7 +98,6 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
         appendUnique(meta.childrenIds, ids);
         meta.hasMore = page.hasMore;
         meta.nextCursor = page.nextCursor;
-        draft.inFlightByParent[key] = false;
       }),
     ),
 
@@ -119,6 +115,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
         delete draft.nodes[id];
         delete draft.meta[id];
         delete draft.danglingByParent[id];
+        delete draft.inFlightByParent[parentKey(id)];
 
         draft.rootIds = draft.rootIds.filter((rootId) => rootId !== id);
 
@@ -133,6 +130,8 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
       produce(state, (draft) => {
         const node = draft.nodes[id];
         if (!node) return;
+
+        if (newParentId !== null && !draft.nodes[newParentId]) return;
 
         const oldParentId = node.parentId;
 
@@ -149,6 +148,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
           draft.rootIds.splice(pos, 0, id);
         } else {
           const newMeta = ensureMeta(draft.meta, newParentId);
+          newMeta.childrenIds = newMeta.childrenIds.filter((childId) => childId !== id);
           const pos = index ?? newMeta.childrenIds.length;
           newMeta.childrenIds.splice(pos, 0, id);
           newMeta.isExpanded = true;
