@@ -28,6 +28,7 @@ Notes/considerations
 - Ordering now uses `createdAt` desc with `id` tiebreak. mergeSortedIds keeps `rootIds` and per-parent `childrenIds` sorted in the store; upsert detaches a node from any prior parent when its parentId changes (avoids duplicate keys after moves/invalidation). If server ever returns position, swap comparator.
 - Expansion/fetch flow: toggleExpanded, and on expand when childrenIds are empty or hasMore is true, trigger requestNext (beginFetch + refetch/fetchNextPage). Expansion state persists across refetches.
 - Optimistic ops: create inserts temp node under parent; delete removes and invalidate parent; move updates parents locally then optionally invalidate both parents.
+- Devtools noise fix: Tree rows only mount `useTreePager` when they are expandable (hasChildren/hasMore/childrenIds>0). True leaves render without instantiating a query. When a leaf gains children/hasMore it rerenders as expandable and mounts the pager then, keeping TanStack Query Devtools clean.
 
 UI wiring done
 

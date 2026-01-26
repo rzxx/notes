@@ -37,6 +37,7 @@ TanStack Query wiring
 - One InfiniteQuery per parent: key `['notes', parentId]`. `getNextPageParam` from `nextCursor` when `hasMore`.
 - `onSuccess`: for each page, call `upsertNodes(parentId, page.notes, { hasMore, nextCursor })`; this also resolves dangling children if the parent arrives.
 - Invalidate locally: `invalidateQueries(['notes', parentId])`; do not clear children arrays on invalidate.
+- Mount per-parent InfiniteQuery only for expandable nodes (hasChildren/hasMore/childrenIds>0) so true leaves do not register idle queries in devtools.
 
 Fetching/expansion flow
 

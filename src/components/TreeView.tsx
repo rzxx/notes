@@ -3,7 +3,13 @@
 import * as React from "react";
 import { useTreePager } from "@/lib/hooks/useTreePager";
 import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
-import { selectFlatRows, type FlatRow, useTreeStore } from "@/lib/stores/tree";
+import {
+  selectFlatRows,
+  type FlatRow,
+  type NodeMeta,
+  type Note,
+  useTreeStore,
+} from "@/lib/stores/tree";
 
 export function TreeView() {
   const rows = useTreeStore(selectFlatRows);
@@ -84,19 +90,55 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   const meta = useTreeStore((state) => state.meta[row.id]);
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
 
-  const { requestNext, isFetching, error } = useTreePager(row.id);
-
   if (!node) return null;
 
-  const isExpanded = meta?.isExpanded ?? false;
   const childCount = meta?.childrenIds.length ?? 0;
   const canExpand = Boolean(node.hasChildren || meta?.hasMore || childCount > 0);
-  const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
-  const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
+
+  if (!canExpand) {
+    return (
+      <TreeNodeRowLayout
+        node={node}
+        row={row}
+        isExpanded={false}
+        canExpand={false}
+        childCount={childCount}
+        hasMore={meta?.hasMore ?? false}
+        isFetching={false}
+        error={null}
+        onToggle={() => {}}
+      />
+    );
+  }
+
+  return (
+    <ExpandableTreeNodeRow
+      node={node}
+      row={row}
+      meta={meta}
+      childCount={childCount}
+      toggleExpanded={toggleExpanded}
+    />
+  );
+}
+
+function ExpandableTreeNodeRow({
+  node,
+  row,
+  meta,
+  childCount,
+  toggleExpanded,
+}: {
+  node: Note;
+  row: Extract<FlatRow, { kind: "node" }>;
+  meta?: NodeMeta;
+  childCount: number;
+  toggleExpanded: (id: string, expanded?: boolean) => void;
+}) {
+  const { requestNext, isFetching, error } = useTreePager(row.id);
+  const isExpanded = meta?.isExpanded ?? false;
 
   const handleToggle = () => {
-    if (!canExpand) return;
-
     const next = !isExpanded;
     toggleExpanded(row.id, next);
 
@@ -106,13 +148,52 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   };
 
   return (
+    <TreeNodeRowLayout
+      node={node}
+      row={row}
+      isExpanded={isExpanded}
+      canExpand
+      childCount={childCount}
+      hasMore={meta?.hasMore ?? false}
+      isFetching={isFetching}
+      error={error}
+      onToggle={handleToggle}
+    />
+  );
+}
+
+function TreeNodeRowLayout({
+  node,
+  row,
+  isExpanded,
+  canExpand,
+  childCount,
+  hasMore,
+  isFetching,
+  error,
+  onToggle,
+}: {
+  node: Note;
+  row: Extract<FlatRow, { kind: "node" }>;
+  isExpanded: boolean;
+  canExpand: boolean;
+  childCount: number;
+  hasMore: boolean;
+  isFetching: boolean;
+  error: unknown;
+  onToggle: () => void;
+}) {
+  const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
+  const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
+
+  return (
     <div
       className="flex items-center gap-2 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
       style={{ paddingLeft: row.depth * 16 + 12 }}
     >
       <button
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
-        onClick={handleToggle}
+        onClick={onToggle}
         disabled={!canExpand}
         title={expandTitle}
         type="button"
@@ -132,7 +213,7 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
         <span>
           {childCount > 0 ? `${childCount} children` : canExpand ? "Has children" : "No children"}
         </span>
-        {meta?.hasMore ? (
+        {hasMore ? (
           <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px]">More</span>
         ) : null}
       </div>
