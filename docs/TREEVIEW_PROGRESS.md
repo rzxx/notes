@@ -2,14 +2,14 @@ Tree view client store sketch (mutative + zustand)
 
 What’s implemented
 
-- Normalized state: nodes table, per-node meta (childrenIds, isExpanded, hasMore, nextCursor), rootIds + root pagination, in-flight flags per parent, and danglingByParent bucket for children whose parent is not yet loaded.
-- Actions: upsertNodes merges pages into the store (attaches any dangling children when their parent arrives), toggleExpanded flips UI state, moveNode updates parent/ordering, removeNode prunes nodes/refs, beginFetch/finishFetch gate one in-flight fetch per parentId (including root via **root**).
-- Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root). TreeView now selects stable slices and wraps buildFlat in a useMemo to keep the derived array referentially stable (fixes React 19 hydration complaining about uncached getServerSnapshot and the resulting update loop).
-- Note shape now includes `hasChildren` and `createdAt`; upsertNodes preserves both so the UI can gate expansion without waiting for a fetch and so ordering can be derived client-side.
+- Normalized state: nodes table, per-node meta (childrenIds, isExpanded, hasMore, nextCursor), rootIds + root pagination, and danglingByParent bucket for children whose parent is not yet loaded. Removed manual in-flight flags; rely on TanStack Query fetch state per parent key.
+- Actions: upsertNodes merges pages into the store (attaches any dangling children when their parent arrives), toggleExpanded flips UI state, moveNode updates parent/ordering, removeNode prunes nodes/refs, restoreNode supports rollbacks.
+- Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root). TreeView uses memoized selector `selectFlatRows` for referential stability (React 19 hydration-safe).
+- Note shape includes `hasChildren` and `createdAt`; upsertNodes preserves both so the UI can gate expansion without waiting for a fetch and so ordering can be derived client-side.
 
 How to use with TanStack Query
 
-- One infinite query per parentId, key: ["notes", parentId]. Use beginFetch(parentId) to gate fetch start; first load uses refetch (enabled: false), subsequent loads use fetchNextPage. Since v5 dropped query callbacks, upsertNodes runs inside a useEffect watching query.data?.pages (avoid reruns on unrelated query state), and finishFetch runs when fetchStatus transitions off "fetching". getNextPageParam reads nextCursor. Invalidate locally via queryClient.invalidateQueries(["notes", parentId]).
+- One infinite query per parentId, key: ["notes", parentId]. We rely on Query’s fetch state instead of a manual gate; `requestNext` bails if fetchStatus/isFetchingNextPage is true. First load uses refetch (enabled: false), subsequent loads use fetchNextPage. upsertNodes runs inside an effect watching query.data?.pages (avoids reruns on unrelated query state). getNextPageParam reads nextCursor. Invalidate locally via queryClient.invalidateQueries(["notes", parentId]).
 
 Important notes
 
@@ -31,15 +31,16 @@ Notes/considerations
 
 UI wiring done
 
-- Added useTreePager hook (gated fetch, upsert via effect, finishFetch via fetchStatus) and TreeView component that renders buildFlat rows with expansion toggles and load-more rows. Root auto-fetches once; load-more buttons disabled while fetching. Dangling bucket count surfaces via badge + console.warn to spot API ordering issues.
-- Expansion button now derives `canExpand = hasChildren || childrenIds.length > 0 || hasMore`; disabled with a neutral symbol/tooltip when false, preventing fetches on known leaves and giving a reliable affordance before children load.
+- useTreePager now uses TanStack fetch state (no manual in-flight map), `fetchResultWithTimeout` (shared timeout) to avoid stuck cold-start fetches, and `useRetryTelemetry` to expose retries remaining and retry countdown derived from shared query config. TreeView renders those counters on load-more rows.
+- Load-more auto-fetch uses shared `useAutoLoadMore` (IntersectionObserver). Buttons remain for manual retry; auto-fetch only when not already fetching. Expansion button still derives `canExpand = hasChildren || childrenIds.length > 0 || hasMore`.
 
 Notes/gotchas
 
-- Mutations are now fully optimistic via store actions: create injects a temp node and replaces it on success; delete removes immediately and restores from snapshot on error; move updates parents immediately and rolls back on error; rename writes optimistic title.
+- Mutations are fully optimistic via store actions: create injects a temp node and replaces it on success; delete removes immediately and restores from snapshot on error; move updates parents immediately and rolls back on error; rename writes optimistic title.
 - Added store `restoreNode` to reattach deleted nodes (with optional meta and index) for clean rollback.
-- Query keys/invalidation now aligned to `['notes', parentId]` to match the tree pager; we cancel/restore around optimistic steps instead of refetching.
+- Query keys/invalidation aligned to `['notes', parentId]`; we cancel/restore around optimistic steps instead of refetching.
 - Bug 2 (tree not updating after create) should be resolved by the optimistic upsert/invalidation alignment; keep an eye on server ordering vs. optimistic position.
+- `fetchResultWithTimeout` uses shared timeout; retry telemetry reflects shared retry count/delay. A timed-out fetch surfaces as error + retry (no stuck loading). Empty page with hasMore logs a warning; dangling buckets warn immediately and re-warn if still present after a short delay.
 
 Implementation updates / gotchas
 

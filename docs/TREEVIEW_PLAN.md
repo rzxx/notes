@@ -13,7 +13,7 @@ State management
 
 - Zustand + mutative for readable immutable updates.
 - Helpers: `ensureMeta`, `mergeSortedIds`, `detachFromParent`. Order is derived from `createdAt` desc with `id` tiebreak; children/root ids stay sorted in store.
-- One in-flight fetch per parent to prevent double-appends/races.
+- Fetch gating uses TanStack Query state; avoid manual per-parent in-flight flags to prevent desync hangs.
 
 Core actions
 
@@ -40,8 +40,8 @@ TanStack Query wiring
 
 Fetching/expansion flow
 
-- On expand: set `isExpanded=true`; if children empty or `hasMore` and no in-flight fetch, call `fetchNextPage` for that parent. Use server-provided `hasChildren` to gate expansion/fetch so leaf nodes don’t trigger pointless calls.
-- Load-more sentinel uses IntersectionObserver; disabled while `isFetchingNextPage` to avoid double fetch.
+- On expand: set `isExpanded=true`; if children empty or `hasMore`, trigger fetch unless Query already reports fetching. Use server-provided `hasChildren` to gate expansion/fetch so leaf nodes don’t trigger pointless calls.
+- Load-more sentinel uses IntersectionObserver; auto-fetch on visible when not already fetching; still expose a retry button.
 
 Mutations
 
@@ -49,10 +49,10 @@ Mutations
 - Delete: remove node optimistically; keep snapshot to restore on error; invalidate that parent’s query to refresh paging flags.
 - Move: local move; keep old parent/index to restore on error; invalidate old/new parents to sync ordering from server.
 
-Error handling
+- Error handling
 
-- Fetch error on load-more: show retry state on sentinel; do not collapse expansion.
-- If a fetch returns empty with `hasMore=true`, log/telemetry; likely cursor issue.
+- - Fetch error on load-more: show retry state on sentinel; do not collapse expansion. Surface retry attempts/remaining retries based on shared TanStack Query config (retry count/delay).
+- - Timeout hung requests (shared timeout constant) to avoid stuck fetch state. If a fetch returns empty with `hasMore=true`, log/telemetry; likely cursor issue.
 
 Performance notes
 
