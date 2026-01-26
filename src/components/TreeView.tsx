@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useTreePager } from "@/lib/hooks/useTreePager";
 import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
+import { useNotesStaleness } from "@/lib/hooks/useNotesStaleness";
+import { usePrefetchNotesPage } from "@/lib/hooks/usePrefetchNotesPage";
+import { useTreePager } from "@/lib/hooks/useTreePager";
 import {
   selectFlatRows,
   type FlatRow,
@@ -106,6 +108,7 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
         hasMore={meta?.hasMore ?? false}
         isFetching={false}
         error={null}
+        isStale={false}
         onToggle={() => {}}
       />
     );
@@ -135,8 +138,18 @@ function ExpandableTreeNodeRow({
   childCount: number;
   toggleExpanded: (id: string, expanded?: boolean) => void;
 }) {
-  const { requestNext, isFetching, error } = useTreePager(row.id);
+  const isEnabled = meta?.isExpanded ?? false;
+  const {
+    requestNext,
+    isFetching,
+    error,
+    isStale: queryIsStale,
+  } = useTreePager(row.id, {
+    enabled: isEnabled,
+  });
   const isExpanded = meta?.isExpanded ?? false;
+  const isStale = useNotesStaleness(row.id, isEnabled, queryIsStale);
+  const prefetch = usePrefetchNotesPage(row.id);
 
   const handleToggle = () => {
     const next = !isExpanded;
@@ -157,7 +170,9 @@ function ExpandableTreeNodeRow({
       hasMore={meta?.hasMore ?? false}
       isFetching={isFetching}
       error={error}
+      isStale={isStale}
       onToggle={handleToggle}
+      onPrefetch={prefetch}
     />
   );
 }
@@ -171,7 +186,9 @@ function TreeNodeRowLayout({
   hasMore,
   isFetching,
   error,
+  isStale,
   onToggle,
+  onPrefetch,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -181,7 +198,9 @@ function TreeNodeRowLayout({
   hasMore: boolean;
   isFetching: boolean;
   error: unknown;
+  isStale: boolean;
   onToggle: () => void;
+  onPrefetch?: () => void;
 }) {
   const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
@@ -194,6 +213,8 @@ function TreeNodeRowLayout({
       <button
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
         onClick={onToggle}
+        onMouseEnter={onPrefetch}
+        onFocus={onPrefetch}
         disabled={!canExpand}
         title={expandTitle}
         type="button"
@@ -215,6 +236,11 @@ function TreeNodeRowLayout({
         </span>
         {hasMore ? (
           <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px]">More</span>
+        ) : null}
+        {isStale ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
+            Stale
+          </span>
         ) : null}
       </div>
 

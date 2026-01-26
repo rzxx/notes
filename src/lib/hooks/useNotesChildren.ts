@@ -1,39 +1,21 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { fetchResult } from "@/lib/api";
-
-type NotesListItem = {
-  id: string;
-  parentId: string | null;
-  title: string;
-  createdAt: string;
-  hasChildren: boolean;
-};
-
-type NotesListResponse = {
-  ok: true;
-  notes: NotesListItem[];
-  nextCursor: string | null;
-};
-
-async function fetchNotesChildren(parentId?: string | null) {
-  const params = new URLSearchParams();
-  if (parentId) params.set("parentId", parentId);
-  const url = params.toString() ? `/api/notes?${params.toString()}` : "/api/notes";
-
-  const result = await fetchResult<NotesListResponse>(url, {
-    method: "GET",
-    headers: { "content-type": "application/json" },
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-keys";
+import { fetchNotesPage } from "@/lib/hooks/useTreePager";
 
 export function useNotesChildren(parentId: string | null) {
-  return useQuery({
-    queryKey: ["notes", parentId],
-    queryFn: () => fetchNotesChildren(parentId),
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.notes.list(parentId),
+    queryFn: ({ pageParam }) => fetchNotesPage(parentId, pageParam ?? null),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
+    select: (data) => {
+      const notes = data.pages.flatMap((page) => page.notes);
+      const lastPage = data.pages[data.pages.length - 1];
+      return { ...data, notes, nextCursor: lastPage?.nextCursor ?? null };
+    },
   });
+
+  return query;
 }

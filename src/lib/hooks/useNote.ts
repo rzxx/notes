@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 
 type NoteDetail = {
   id: string;
@@ -39,7 +40,7 @@ async function fetchNote(noteId: string) {
 
 export function useNote(noteId: string | null) {
   return useQuery({
-    queryKey: ["note", noteId],
+    queryKey: queryKeys.notes.detail(noteId),
     queryFn: () => fetchNote(noteId as string),
     enabled: Boolean(noteId),
   });

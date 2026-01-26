@@ -20,7 +20,7 @@ Core actions
 - `upsertNodes(parentId, notes[], { hasMore, nextCursor })`: merge/replace node data; detach from prior parent if parentId changes; merge child/root ids via sorted set; set paging flags. If parent missing and parentId != null, stash child ids in `danglingByParent[parentId]` instead of rendering.
 - `toggleExpanded(id, expanded?)`: flip/set expansion; components decide whether to fetch when expanding.
 - `removeNode(id)`: delete node/meta; remove id from any parent childrenIds and rootIds.
-- `moveNode(id, newParentId, index?)`: update parentId; remove from old parent/roots; insert into new parent/roots via sorted merge (createdAt order); ensure new parent is expanded.
+- `moveNode(id, newParentId, index?)`: update parentId; remove from old parent/roots; insert into new parent/roots via sorted merge (createdAt order); ensure new parent is expanded; if the new parent is not yet loaded, detach and stash the node in `danglingByParent[newParentId]` until the parent arrives.
 
 Dangling handling
 
@@ -38,10 +38,12 @@ TanStack Query wiring
 - `onSuccess`: for each page, call `upsertNodes(parentId, page.notes, { hasMore, nextCursor })`; this also resolves dangling children if the parent arrives.
 - Invalidate locally: `invalidateQueries(['notes', parentId])`; do not clear children arrays on invalidate.
 - Mount per-parent InfiniteQuery only for expandable nodes (hasChildren/hasMore/childrenIds>0) so true leaves do not register idle queries in devtools.
+- Pager accepts an `enabled` flag (driven by expansion) and short-circuits `requestNext` when there is no next page; `fetchNotesPage` is shared for prefetchers.
 
 Fetching/expansion flow
 
 - On expand: set `isExpanded=true`; if children empty or `hasMore`, trigger fetch unless Query already reports fetching. Use server-provided `hasChildren` to gate expansion/fetch so leaf nodes don’t trigger pointless calls.
+- Prefetch the first page on hover/focus of the expand control to warm caches before expansion.
 - Load-more sentinel uses IntersectionObserver; auto-fetch on visible when not already fetching; still expose a retry button.
 
 Mutations
@@ -65,6 +67,7 @@ UX basics
 - Indent via `padding-left = depth * step` for virtualizable flat list.
 - `loadMore` sentinel row distinct; shows spinner when fetching.
 - IntersectionObserver-driven load-more (root + children); auto-fetch on sight; show retry CTA only on failure. Optional attempt count on retry (e.g., "Retry (2/3)").
+- Show a "Stale" pill when the cached page is stale (computed from Query cache even while pager is disabled for collapsed nodes).
 
 Open points to watch
 

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
 
 type DeleteNoteInput = {
@@ -32,8 +33,8 @@ export function useDeleteNote() {
     mutationFn: deleteNote,
     onMutate: async (variables) => {
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: ["note", variables.noteId] }),
-        queryClient.cancelQueries({ queryKey: ["notes", variables.parentId] }),
+        queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.parentId) }),
       ]);
 
       const state = useTreeStore.getState();
@@ -65,9 +66,9 @@ export function useDeleteNote() {
       useTreeStore.getState().restoreNode({ node, meta, parentId, index });
     },
     onSuccess: (_data, variables, context) => {
-      queryClient.invalidateQueries({ queryKey: ["note", variables.noteId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
       queryClient.invalidateQueries({
-        queryKey: ["notes", context?.snapshot?.parentId ?? variables.parentId ?? null],
+        queryKey: queryKeys.notes.list(context?.snapshot?.parentId ?? variables.parentId ?? null),
       });
     },
   });

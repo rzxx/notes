@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
 
 type CreateNoteInput = {
@@ -34,7 +35,7 @@ export function useCreateNote() {
   return useMutation({
     mutationFn: createNote,
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["notes", variables.parentId] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.parentId) });
 
       const tempId = `temp-${
         typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -97,7 +98,7 @@ export function useCreateNote() {
       );
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["notes", variables.parentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.parentId) });
     },
   });
 }

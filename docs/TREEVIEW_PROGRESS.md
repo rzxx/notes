@@ -6,6 +6,8 @@ What’s implemented
 - Actions: upsertNodes merges pages into the store (attaches any dangling children when their parent arrives), toggleExpanded flips UI state, moveNode updates parent/ordering, removeNode prunes nodes/refs, restoreNode supports rollbacks.
 - Derivation: buildFlat walks expanded nodes to produce flat rows with depth plus loadMore sentinels (per parent and root). TreeView uses memoized selector `selectFlatRows` for referential stability (React 19 hydration-safe).
 - Note shape includes `hasChildren` and `createdAt`; upsertNodes preserves both so the UI can gate expansion without waiting for a fetch and so ordering can be derived client-side.
+- Query keys consolidated in `queryKeys` helper for list/detail; shared across fetchers, mutations, and prefetch hooks.
+- useNotesChildren now uses InfiniteQuery + `fetchNotesPage`, flattening pages to expose `notes` + `nextCursor` for consumers.
 
 How to use with TanStack Query
 
@@ -34,6 +36,7 @@ UI wiring done
 
 - useTreePager now uses TanStack fetch state (no manual in-flight map), `fetchResultWithTimeout` (shared timeout) to avoid stuck cold-start fetches, and `useRetryTelemetry` to expose retries remaining and retry countdown derived from shared query config. TreeView renders those counters on load-more rows.
 - Load-more auto-fetch uses shared `useAutoLoadMore` (IntersectionObserver). Buttons remain for manual retry; auto-fetch only when not already fetching. Expansion button still derives `canExpand = hasChildren || childrenIds.length > 0 || hasMore`.
+- Pager `enabled` ties to expansion; requestNext no-ops when there is no next page; expand control hover/focus prefetches the first page; rows show a "Stale" pill computed via useNotesStaleness (cache-based, works while collapsed).
 
 Notes/gotchas
 
@@ -42,6 +45,9 @@ Notes/gotchas
 - Query keys/invalidation aligned to `['notes', parentId]`; we cancel/restore around optimistic steps instead of refetching.
 - Bug 2 (tree not updating after create) should be resolved by the optimistic upsert/invalidation alignment; keep an eye on server ordering vs. optimistic position.
 - `fetchResultWithTimeout` uses shared timeout; retry telemetry reflects shared retry count/delay. A timed-out fetch surfaces as error + retry (no stuck loading). Empty page with hasMore logs a warning; dangling buckets warn immediately and re-warn if still present after a short delay.
+- useNotesStaleness subscribes to the query cache and polls every 5s; uses per-query staleTime/meta so stale badges match Query behavior even when the pager is disabled.
+- Prefetch uses `prefetchInfiniteQuery` to warm the first page; shares fetcher with pager to stay consistent.
+- requestNext returns early when hasNextPage is false after initial data to avoid redundant fetch calls.
 
 Implementation updates / gotchas
 
@@ -49,3 +55,4 @@ Implementation updates / gotchas
 - move/restore ignore the optional index and rely on sorted merge to keep order consistent.
 - upsert detaches nodes from their previous parent/root when parentId changes, preventing duplicate IDs from appearing under both parents after fetches.
 - InfiniteQuery `getNextPageParam` now guards `lastPage` to avoid undefined access during initial optimistic render.
+- moveNode now detaches and parks a node in `danglingByParent[newParentId]` when the target parent is not yet in the store (so moves to unloaded parents persist); restoreNode signature dropped index; store creator no longer uses the unused get arg.

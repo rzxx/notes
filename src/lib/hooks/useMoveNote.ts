@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
 
 type MoveNoteInput = {
@@ -36,8 +37,8 @@ export function useMoveNote() {
     mutationFn: moveNote,
     onMutate: async (variables) => {
       await Promise.all([
-        queryClient.cancelQueries({ queryKey: ["notes", variables.previousParentId] }),
-        queryClient.cancelQueries({ queryKey: ["notes", variables.newParentId] }),
+        queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.previousParentId) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.newParentId) }),
       ]);
 
       const state = useTreeStore.getState();
@@ -59,9 +60,9 @@ export function useMoveNote() {
         .moveNode(variables.noteId, context.oldParentId ?? null, context.oldIndex);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["note", variables.noteId] });
-      queryClient.invalidateQueries({ queryKey: ["notes", variables.previousParentId] });
-      queryClient.invalidateQueries({ queryKey: ["notes", variables.newParentId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.previousParentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.newParentId) });
     },
   });
 }

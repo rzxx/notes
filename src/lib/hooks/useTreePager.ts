@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchResultWithTimeout } from "@/lib/api";
-import { useTreeStore } from "@/lib/stores/tree";
 import { useRetryTelemetry } from "@/lib/hooks/useRetryTelemetry";
 import { FETCH_TIMEOUT_MS } from "@/lib/query-config";
+import { queryKeys } from "@/lib/query-keys";
+import { useTreeStore } from "@/lib/stores/tree";
 
 type NotesPage = {
   ok: true;
@@ -19,7 +20,7 @@ type NotesPage = {
   nextCursor: string | null;
 };
 
-async function fetchNotesPage(parentId: string | null, cursor: string | null) {
+export async function fetchNotesPage(parentId: string | null, cursor: string | null) {
   const params = new URLSearchParams();
   if (parentId) params.set("parentId", parentId);
   if (cursor) params.set("cursor", cursor);
@@ -39,7 +40,7 @@ async function fetchNotesPage(parentId: string | null, cursor: string | null) {
   return result.value;
 }
 
-export function useTreePager(parentId: string | null) {
+export function useTreePager(parentId: string | null, { enabled = false } = {}) {
   const { upsertNodes } = useTreeStore.getState();
 
   const [attemptCount, setAttemptCount] = React.useState(0);
@@ -49,16 +50,18 @@ export function useTreePager(parentId: string | null) {
   }, [parentId]);
 
   const query = useInfiniteQuery({
-    queryKey: ["notes", parentId],
+    queryKey: queryKeys.notes.list(parentId),
     queryFn: ({ pageParam }) => fetchNotesPage(parentId, pageParam ?? null),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
-    enabled: false,
-    refetchOnMount: false,
+    enabled,
+    refetchOnMount: enabled ? true : false,
   });
 
   const requestNext = React.useCallback(() => {
     if (query.fetchStatus === "fetching" || query.isFetchingNextPage) return;
+    const hasData = (query.data?.pages?.length ?? 0) > 0;
+    if (hasData && query.hasNextPage === false) return;
 
     setAttemptCount((count) => count + 1);
 
@@ -67,11 +70,11 @@ export function useTreePager(parentId: string | null) {
 
     void trigger({ throwOnError: false });
   }, [
-    parentId,
     query.data?.pages.length,
     query.fetchNextPage,
     query.fetchStatus,
     query.isFetchingNextPage,
+    query.hasNextPage,
     query.refetch,
   ]);
 
@@ -109,6 +112,7 @@ export function useTreePager(parentId: string | null) {
     isFetching,
     error: query.error,
     hasNextPage: query.hasNextPage,
+    isStale: query.isStale,
     attemptCount,
     failureCount: retryTelemetry.failureCount,
     retriesRemaining: retryTelemetry.retriesRemaining,

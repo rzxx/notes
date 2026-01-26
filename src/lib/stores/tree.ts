@@ -81,7 +81,7 @@ const detachFromParent = (draft: TreeState, parentId: string | null, id: string)
   if (meta) meta.childrenIds = withoutId(meta.childrenIds, id);
 };
 
-export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
+export const useTreeStore = create<TreeState & TreeActions>((set) => ({
   nodes: {},
   meta: {},
   rootIds: [],
@@ -154,15 +154,21 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
       }),
     ),
 
-  moveNode: (id, newParentId, _index) =>
+  moveNode: (id, newParentId) =>
     set((state) =>
       produce(state, (draft) => {
         const node = draft.nodes[id];
         if (!node) return;
 
-        if (newParentId !== null && !draft.nodes[newParentId]) return;
-
         const oldParentId = node.parentId;
+
+        if (newParentId !== null && !draft.nodes[newParentId]) {
+          detachFromParent(draft, oldParentId, id);
+          const bucket = draft.danglingByParent[newParentId] ?? [];
+          draft.danglingByParent[newParentId] = mergeSortedIds(bucket, [id], draft.nodes);
+          node.parentId = newParentId;
+          return;
+        }
 
         if (oldParentId === null) {
           draft.rootIds = withoutId(draft.rootIds, id);
@@ -187,7 +193,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
       }),
     ),
 
-  restoreNode: ({ node, meta, parentId, index: _index }) =>
+  restoreNode: ({ node, meta, parentId }) =>
     set((state) =>
       produce(state, (draft) => {
         draft.nodes[node.id] = node;
