@@ -2,17 +2,11 @@
 
 import * as React from "react";
 import { useTreePager } from "@/lib/hooks/useTreePager";
-import { buildFlat, type FlatRow, useTreeStore } from "@/lib/stores/tree";
+import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
+import { selectFlatRows, type FlatRow, useTreeStore } from "@/lib/stores/tree";
 
 export function TreeView() {
-  const rootIds = useTreeStore((state) => state.rootIds);
-  const meta = useTreeStore((state) => state.meta);
-  const rootPagination = useTreeStore((state) => state.rootPagination);
-
-  const rows = React.useMemo(
-    () => buildFlat({ rootIds, meta, rootPagination }),
-    [rootIds, meta, rootPagination],
-  );
+  const rows = useTreeStore(selectFlatRows);
   const danglingCount = useTreeStore((state) => Object.keys(state.danglingByParent).length);
 
   const {
@@ -34,6 +28,14 @@ export function TreeView() {
       "dangling tree children waiting for parents",
       useTreeStore.getState().danglingByParent,
     );
+    const timeout = window.setTimeout(() => {
+      const dangling = useTreeStore.getState().danglingByParent;
+      if (Object.keys(dangling).length) {
+        console.warn("dangling tree children still pending", dangling);
+      }
+    }, 2000);
+
+    return () => window.clearTimeout(timeout);
   }, [danglingCount]);
 
   return (
@@ -141,19 +143,60 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
 }
 
 function LoadMoreRow({ row }: { row: Extract<FlatRow, { kind: "loadMore" }> }) {
-  const { requestNext, isFetching, error } = useTreePager(row.parentId);
+  const {
+    requestNext,
+    isFetching,
+    error,
+    hasNextPage,
+    attemptCount,
+    failureCount,
+    retriesRemaining,
+    nextRetryInMs,
+    totalRetries,
+  } = useTreePager(row.parentId);
+
+  const handleRequest = React.useCallback(() => {
+    if (isFetching) return;
+    requestNext();
+  }, [isFetching, requestNext]);
+
+  const shouldAutoLoad = hasNextPage !== false && !isFetching && !error;
+  const loadMoreRef = useAutoLoadMore({ enabled: shouldAutoLoad, onVisible: handleRequest });
 
   return (
     <div
       className="flex items-center justify-between rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2"
+      ref={loadMoreRef}
       style={{ paddingLeft: row.depth * 16 + 12 }}
     >
-      <span className="text-sm text-zinc-700">Load more</span>
+      <div className="flex flex-col">
+        <span className="text-sm text-zinc-700">Load more</span>
+        <span className="text-[11px] text-zinc-500">
+          {shouldAutoLoad
+            ? "Auto-fetches when visible"
+            : error
+              ? "Fetch failed — retry"
+              : "Waiting"}
+        </span>
+      </div>
       <div className="flex items-center gap-2">
+        {attemptCount > 0 ? (
+          <span className="text-[11px] text-zinc-500">Attempts {attemptCount}</span>
+        ) : null}
+        {failureCount > 0 ? (
+          <span className="text-[11px] text-amber-700">
+            Retries left {retriesRemaining}/{totalRetries}
+          </span>
+        ) : null}
+        {nextRetryInMs !== null && nextRetryInMs > 0 ? (
+          <span className="text-[11px] text-amber-600">
+            Retrying in {Math.ceil(nextRetryInMs / 1000)}s
+          </span>
+        ) : null}
         {error ? <span className="text-[11px] text-red-600">Error</span> : null}
         <button
           className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-          onClick={requestNext}
+          onClick={handleRequest}
           disabled={isFetching}
           type="button"
         >

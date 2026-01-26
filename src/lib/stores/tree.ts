@@ -29,7 +29,6 @@ type TreeState = {
   rootIds: string[];
   rootPagination: Pagination;
   danglingByParent: Record<string, string[]>;
-  inFlightByParent: Record<string, boolean>;
 };
 
 type TreeActions = {
@@ -37,8 +36,6 @@ type TreeActions = {
   toggleExpanded: (id: string, expanded?: boolean) => void;
   removeNode: (id: string) => void;
   moveNode: (id: string, newParentId: string | null, index?: number) => void;
-  beginFetch: (parentId: string | null) => boolean;
-  finishFetch: (parentId: string | null) => void;
   restoreNode: (input: {
     node: Note;
     meta?: NodeMeta;
@@ -46,10 +43,6 @@ type TreeActions = {
     index?: number;
   }) => void;
 };
-
-const ROOT_KEY = "__root__";
-
-const parentKey = (parentId: string | null) => parentId ?? ROOT_KEY;
 
 const ensureMeta = (meta: Record<string, NodeMeta>, id: string) => {
   if (!meta[id]) {
@@ -94,7 +87,6 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
   rootIds: [],
   rootPagination: { hasMore: false, nextCursor: null },
   danglingByParent: {},
-  inFlightByParent: {},
 
   upsertNodes: (parentId, notes, page) =>
     set((state) =>
@@ -153,7 +145,6 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
         delete draft.nodes[id];
         delete draft.meta[id];
         delete draft.danglingByParent[id];
-        delete draft.inFlightByParent[parentKey(id)];
 
         draft.rootIds = draft.rootIds.filter((rootId) => rootId !== id);
 
@@ -196,28 +187,6 @@ export const useTreeStore = create<TreeState & TreeActions>((set, get) => ({
       }),
     ),
 
-  beginFetch: (parentId) => {
-    let allowed = false;
-    const key = parentKey(parentId);
-    set((state) =>
-      produce(state, (draft) => {
-        if (!draft.inFlightByParent[key]) {
-          draft.inFlightByParent[key] = true;
-          allowed = true;
-        }
-      }),
-    );
-    return allowed;
-  },
-
-  finishFetch: (parentId) =>
-    set((state) =>
-      produce(state, (draft) => {
-        const key = parentKey(parentId);
-        draft.inFlightByParent[key] = false;
-      }),
-    ),
-
   restoreNode: ({ node, meta, parentId, index: _index }) =>
     set((state) =>
       produce(state, (draft) => {
@@ -247,6 +216,42 @@ type NodeRow = { kind: "node"; id: string; depth: number };
 type LoadMoreRow = { kind: "loadMore"; parentId: string | null; depth: number };
 
 export type FlatRow = NodeRow | LoadMoreRow;
+
+const makeFlatSelector = () => {
+  let prevRootIds: string[] | null = null;
+  let prevMeta: TreeState["meta"] | null = null;
+  let prevRootHasMore: boolean | null = null;
+  let prevRootCursor: string | null = null;
+  let prevResult: FlatRow[] = [];
+
+  return (state: Pick<TreeState, "meta" | "rootIds" | "rootPagination">): FlatRow[] => {
+    const sameRootIds = prevRootIds === state.rootIds;
+    const sameMeta = prevMeta === state.meta;
+    const sameRootPagination =
+      prevRootHasMore === state.rootPagination.hasMore &&
+      prevRootCursor === state.rootPagination.nextCursor;
+
+    if (sameRootIds && sameMeta && sameRootPagination) {
+      return prevResult;
+    }
+
+    prevRootIds = state.rootIds;
+    prevMeta = state.meta;
+    prevRootHasMore = state.rootPagination.hasMore;
+    prevRootCursor = state.rootPagination.nextCursor;
+    prevResult = buildFlat(state);
+    return prevResult;
+  };
+};
+
+const flatSelector = makeFlatSelector();
+
+export const selectFlatRows = (state: TreeState) =>
+  flatSelector({
+    meta: state.meta,
+    rootIds: state.rootIds,
+    rootPagination: state.rootPagination,
+  });
 
 export function buildFlat(
   state: Pick<TreeState, "meta" | "rootIds" | "rootPagination">,

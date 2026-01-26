@@ -63,7 +63,14 @@ UX basics
 
 - Indent via `padding-left = depth * step` for virtualizable flat list.
 - `loadMore` sentinel row distinct; shows spinner when fetching.
+- IntersectionObserver-driven load-more (root + children); auto-fetch on sight; show retry CTA only on failure. Optional attempt count on retry (e.g., "Retry (2/3)").
 
 Open points to watch
 
 - Large-tree memory: consider optional collapse-to-evict if needed later.
+- Virtualization limits DOM size but not store size; eviction/auto-collapse only if profiling shows memory pressure.
+- Depth cache only if profiling shows buildFlat is hot; current walk-based depth is fine.
+- Memoization: today component-level `useMemo(buildFlat(slice))` is OK if TreeView is sole consumer; shared memoized selector if multiple consumers appear.
+- Logging/telemetry: TODOs for (a) danglingByParent non-empty over time/attach events and (b) empty page with `hasMore=true` (cursor bug signal). Deferred until logging system exists.
+- Retry UX: load-more sentinel keeps expansion, shows retry state; align with TanStack retry counts.
+- Benchmarks: add bun bench to stress buildFlat (sizes/shapes), depth-cache prototype, and auto-collapse policy to decide if optimizations are needed.

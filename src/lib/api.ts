@@ -59,3 +59,18 @@ export async function fetchResult<T>(
     andThenAsync(payloadResult, async (payload) => toAppErrorOrOk<T>(response)(payload)),
   );
 }
+
+export async function fetchResultWithTimeout<T>(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Result<T, AppError>> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort("timeout"), timeoutMs);
+
+  try {
+    return await fetchResult<T>(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
