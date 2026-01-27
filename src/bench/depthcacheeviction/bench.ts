@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { LEVELS, type Fixture } from "./generator";
 import { applyMutations, buildMutationScript } from "./mutations";
 import { VARIANTS, buildFlatRows, makeRuntimeStore, type VariantConfig } from "./store";
@@ -26,7 +29,9 @@ const DEFAULT_ITERATIONS = 5;
 const STRESS_ITERATIONS = 3;
 
 const isMain =
-  typeof import.meta !== "undefined" && (import.meta as ImportMeta & { main?: boolean }).main;
+  typeof import.meta !== "undefined" &&
+  (((import.meta as ImportMeta & { main?: boolean }).main as boolean | undefined) ??
+    isNodeEntrypoint(import.meta.url));
 if (isMain) {
   runBenchmarks();
 }
@@ -133,6 +138,19 @@ function measureMs<T>(fn: () => T): { durationMs: number; result: T } {
   const result = fn();
   const durationMs = performance.now() - start;
   return { durationMs, result };
+}
+
+function isNodeEntrypoint(moduleUrl: string | undefined): boolean {
+  if (!moduleUrl) return false;
+  if (typeof process === "undefined" || !process.argv?.[1]) return false;
+
+  try {
+    const entry = resolve(process.argv[1]);
+    const current = resolve(fileURLToPath(moduleUrl));
+    return entry === current;
+  } catch {
+    return false;
+  }
 }
 
 function summarize(samples: number[]): StageStats {
