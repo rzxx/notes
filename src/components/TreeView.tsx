@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
 import { useNotesStaleness } from "@/lib/hooks/useNotesStaleness";
 import { usePrefetchNotesPage } from "@/lib/hooks/usePrefetchNotesPage";
@@ -16,6 +18,11 @@ import {
 export function TreeView() {
   const rows = useTreeStore(selectFlatRows);
   const danglingCount = useTreeStore((state) => Object.keys(state.danglingByParent).length);
+  const routeParams = useParams<{ id?: string }>();
+  const routeSelectedId = typeof routeParams?.id === "string" ? routeParams.id : undefined;
+  const selectedId = useTreeStore((state) => state.selectedId);
+  const select = useTreeStore((state) => state.select);
+  const clearSelection = useTreeStore((state) => state.clearSelection);
 
   const {
     requestNext: requestRoot,
@@ -29,6 +36,15 @@ export function TreeView() {
     hasRequestedRoot.current = true;
     requestRoot();
   }, [requestRoot]);
+
+  React.useEffect(() => {
+    if (routeSelectedId) {
+      if (routeSelectedId !== selectedId) select(routeSelectedId);
+      return;
+    }
+
+    if (selectedId !== null) clearSelection();
+  }, [clearSelection, routeSelectedId, select, selectedId]);
 
   React.useEffect(() => {
     if (!danglingCount) return;
@@ -227,7 +243,6 @@ function TreeNodeRowLayout({
     <div
       className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors ${isSelected ? "border-zinc-300 bg-zinc-100" : "border-zinc-100 bg-zinc-50 hover:border-zinc-200 hover:bg-zinc-100"}`}
       style={{ paddingLeft: row.depth * 16 + 12 }}
-      onClick={onSelect}
     >
       <button
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
@@ -241,27 +256,35 @@ function TreeNodeRowLayout({
         {expandSymbol}
       </button>
 
-      <div className="flex flex-1 flex-col">
-        <div className="flex items-center gap-2 text-sm font-medium text-zinc-900">
-          <span>{node.title}</span>
-          {isFetching ? <span className="text-xs font-normal text-zinc-500">Loading…</span> : null}
+      <Link
+        href={`/note/${row.id}`}
+        onClick={onSelect}
+        className="flex flex-1 items-center gap-2 rounded-md px-2 py-1 ring-0 outline-none"
+      >
+        <div className="flex flex-1 flex-col">
+          <div className="flex items-center gap-2 text-sm font-medium text-zinc-900">
+            <span>{node.title}</span>
+            {isFetching ? (
+              <span className="text-xs font-normal text-zinc-500">Loading…</span>
+            ) : null}
+          </div>
+          <div className="text-[11px] text-zinc-500">{node.id}</div>
         </div>
-        <div className="text-[11px] text-zinc-500">{node.id}</div>
-      </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-        <span>
-          {childCount > 0 ? `${childCount} children` : canExpand ? "Has children" : "No children"}
-        </span>
-        {hasMore ? (
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px]">More</span>
-        ) : null}
-        {isStale ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
-            Stale
+        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <span>
+            {childCount > 0 ? `${childCount} children` : canExpand ? "Has children" : "No children"}
           </span>
-        ) : null}
-      </div>
+          {hasMore ? (
+            <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px]">More</span>
+          ) : null}
+          {isStale ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
+              Stale
+            </span>
+          ) : null}
+        </div>
+      </Link>
 
       {error ? <span className="text-[11px] text-red-600">Error</span> : null}
     </div>
