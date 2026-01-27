@@ -1,0 +1,28 @@
+L1-tiny | baseline | iters=5 | cold 0.01ms/p95 0.06ms | mutation 0.16ms/p95 0.49ms | post 0.01ms/p95 0.03ms | rows 5→27 | peakRSS 300.2MB
+L1-tiny | depthCache | iters=5 | cold 0.00ms/p95 0.01ms | mutation 0.09ms/p95 0.16ms | post 0.00ms/p95 0.01ms | rows 5→27 | peakRSS 300.2MB
+L1-tiny | eviction | iters=5 | cold 0.01ms/p95 0.04ms | mutation 0.08ms/p95 0.11ms | post 0.00ms/p95 0.01ms | rows 5→27 | peakRSS 300.4MB
+L1-tiny | depthCacheEviction | iters=5 | cold 0.00ms/p95 0.00ms | mutation 0.09ms/p95 0.12ms | post 0.00ms/p95 0.00ms | rows 5→27 | peakRSS 300.7MB
+L2-small | baseline | iters=5 | cold 0.00ms/p95 0.01ms | mutation 15.5ms/p95 18.6ms | post 0.01ms/p95 0.01ms | rows 13→74 | peakRSS 357.1MB
+L2-small | depthCache | iters=5 | cold 0.00ms/p95 0.00ms | mutation 14.4ms/p95 16.5ms | post 0.01ms/p95 0.02ms | rows 13→74 | peakRSS 373.1MB
+L2-small | eviction | iters=5 | cold 0.00ms/p95 0.00ms | mutation 17.6ms/p95 18.7ms | post 0.00ms/p95 0.00ms | rows 13→74 | peakRSS 373.2MB
+L2-small | depthCacheEviction | iters=5 | cold 0.00ms/p95 0.00ms | mutation 17.2ms/p95 17.9ms | post 0.00ms/p95 0.00ms | rows 13→74 | peakRSS 373.3MB
+L3-medium | baseline | iters=5 | cold 0.01ms/p95 0.01ms | mutation 1.01s/p95 1.02s | post 0.01ms/p95 0.01ms | rows 116→344 | peakRSS 488.2MB
+L3-medium | depthCache | iters=5 | cold 0.01ms/p95 0.01ms | mutation 1.03s/p95 1.05s | post 0.04ms/p95 0.04ms | rows 116→344 | peakRSS 538.9MB
+L3-medium | eviction | iters=5 | cold 0.01ms/p95 0.01ms | mutation 1.27s/p95 1.28s | post 0.02ms/p95 0.03ms | rows 116→344 | peakRSS 550.3MB
+L3-medium | depthCacheEviction | iters=5 | cold 0.01ms/p95 0.01ms | mutation 1.27s/p95 1.30s | post 0.04ms/p95 0.06ms | rows 116→344 | peakRSS 602.7MB
+L4-large | baseline | iters=5 | cold 0.06ms/p95 0.07ms | mutation 11.07s/p95 11.22s | post 0.06ms/p95 0.07ms | rows 538→957 | peakRSS 760.3MB
+L4-large | depthCache | iters=5 | cold 0.04ms/p95 0.06ms | mutation 11.04s/p95 11.32s | post 0.13ms/p95 0.16ms | rows 538→957 | peakRSS 613.0MB
+L4-large | eviction | iters=5 | cold 0.08ms/p95 0.15ms | mutation 13.71s/p95 13.86s | post 0.14ms/p95 0.28ms | rows 538→957 | peakRSS 948.7MB
+L4-large | depthCacheEviction | iters=5 | cold 0.09ms/p95 0.09ms | mutation 13.42s/p95 13.60s | post 0.14ms/p95 0.16ms | rows 538→957 | peakRSS 942.9MB
+L5-stress | baseline | iters=3 | cold 0.43ms/p95 0.50ms | mutation 98.75s/p95 98.96s | post 0.36ms/p95 0.37ms | rows 1863→2555 | peakRSS 695.6MB | stress-level iterations capped
+L5-stress | depthCache | iters=3 | cold 0.49ms/p95 0.52ms | mutation 98.87s/p95 99.52s | post 0.45ms/p95 0.48ms | rows 1863→2555 | peakRSS 663.6MB | stress-level iterations capped
+L5-stress | eviction | iters=3 | cold 0.32ms/p95 0.35ms | mutation 117.50s/p95 125.70s | post 0.49ms/p95 0.50ms | rows 1863→2555 | peakRSS 1615.4MB | stress-level iterations capped
+L5-stress | depthCacheEviction | iters=3 | cold 0.41ms/p95 0.43ms | mutation 119.88s/p95 124.61s | post 0.57ms/p95 0.60ms | rows 1863→2555 | peakRSS 1672.8MB | stress-level iterations capped
+
+Notes:
+- L5-stress/baseline: stress-level iterations capped
+- L5-stress/depthCache: stress-level iterations capped
+- L5-stress/eviction: stress-level iterations capped
+- L5-stress/depthCacheEviction: stress-level iterations capped
+
+Run with node v25.4.0 took 26m 54s 545ms.
