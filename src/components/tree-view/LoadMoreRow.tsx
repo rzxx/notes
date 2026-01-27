@@ -1,7 +1,7 @@
 "use client";
 
 import type { FlatRow } from "@/lib/stores/tree";
-import { useLoadMoreRow } from "./hooks";
+import { useLoadMoreRow } from "@/components/tree-view/hooks";
 
 export function LoadMoreRow({ row }: { row: Extract<FlatRow, { kind: "loadMore" }> }) {
   const {

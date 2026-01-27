@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useTreeStore, type FlatRow, type NodeMeta, type Note } from "@/lib/stores/tree";
-import { TreeNodeRowLayout } from "./TreeNodeRowLayout";
-import { useExpandableRow } from "./hooks";
+import { TreeNodeRowLayout } from "@/components/tree-view/TreeNodeRowLayout";
+import { useExpandableRow } from "@/components/tree-view/hooks";
 
 export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   const node = useTreeStore((state) => state.nodes[row.id]);

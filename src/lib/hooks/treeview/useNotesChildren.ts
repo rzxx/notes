@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
-import { fetchNotesPage } from "./useTreePager";
+import { fetchNotesPage } from "@/lib/hooks/treeview/useTreePager";
 
 export function useNotesChildren(parentId: string | null) {
   const query = useInfiniteQuery({

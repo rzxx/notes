@@ -1,1 +1,1 @@
-export { TreeView } from "./TreeView";
+export { TreeView } from "@/components/tree-view/TreeView";

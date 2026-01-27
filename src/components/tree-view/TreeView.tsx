@@ -2,8 +2,12 @@
 
 import * as React from "react";
 import { selectFlatRows, useTreeStore } from "@/lib/stores/tree";
-import { TreeRow } from "./TreeRow";
-import { useDanglingChildrenWarning, useRootLoader, useSyncRouteSelection } from "./hooks";
+import { TreeRow } from "@/components/tree-view/TreeRow";
+import {
+  useDanglingChildrenWarning,
+  useRootLoader,
+  useSyncRouteSelection,
+} from "@/components/tree-view/hooks";
 
 export function TreeView() {
   const rows = useTreeStore(selectFlatRows);
