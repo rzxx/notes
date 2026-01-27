@@ -17,20 +17,12 @@ export function TreeView() {
   useSyncRouteSelection();
 
   return (
-    <section className="rounded-lg border border-stone-200 bg-stone-50 p-4">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold tracking-wide text-stone-500 uppercase">
-            Tree view
-          </h2>
-          <p className="text-sm text-stone-600">Zustand + paginated per-parent fetches.</p>
-        </div>
-        {danglingCount ? (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-            Dangling {danglingCount}
-          </span>
-        ) : null}
-      </header>
+    <>
+      {danglingCount ? (
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          Dangling {danglingCount}
+        </span>
+      ) : null}
 
       {rootError ? (
         <div className="mt-3 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -45,7 +37,7 @@ export function TreeView() {
         </div>
       ) : null}
 
-      <div className="mt-3 space-y-1">
+      <div className="space-y-1">
         {rows.length === 0 && isFetchingRoot ? (
           <p className="text-sm text-stone-500">Loading tree…</p>
         ) : null}
@@ -57,6 +49,6 @@ export function TreeView() {
           />
         ))}
       </div>
-    </section>
+    </>
   );
 }
