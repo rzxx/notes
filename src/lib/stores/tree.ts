@@ -29,6 +29,7 @@ type TreeState = {
   rootIds: string[];
   rootPagination: Pagination;
   danglingByParent: Record<string, string[]>;
+  selectedId: string | null;
 };
 
 type TreeActions = {
@@ -42,6 +43,8 @@ type TreeActions = {
     parentId: string | null;
     index?: number;
   }) => void;
+  select: (id: string) => void;
+  clearSelection: () => void;
 };
 
 const ensureMeta = (meta: Record<string, NodeMeta>, id: string) => {
@@ -87,6 +90,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
   rootIds: [],
   rootPagination: { hasMore: false, nextCursor: null },
   danglingByParent: {},
+  selectedId: null,
 
   upsertNodes: (parentId, notes, page) =>
     set((state) =>
@@ -145,6 +149,10 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
         delete draft.nodes[id];
         delete draft.meta[id];
         delete draft.danglingByParent[id];
+
+        if (draft.selectedId === id) {
+          draft.selectedId = null;
+        }
 
         draft.rootIds = draft.rootIds.filter((rootId) => rootId !== id);
 
@@ -212,6 +220,20 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
           [node.id],
           draft.nodes,
         );
+      }),
+    ),
+
+  select: (id) =>
+    set((state) =>
+      produce(state, (draft) => {
+        draft.selectedId = id;
+      }),
+    ),
+
+  clearSelection: () =>
+    set((state) =>
+      produce(state, (draft) => {
+        draft.selectedId = null;
       }),
     ),
 }));

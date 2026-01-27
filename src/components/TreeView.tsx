@@ -91,17 +91,22 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   const node = useTreeStore((state) => state.nodes[row.id]);
   const meta = useTreeStore((state) => state.meta[row.id]);
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
+  const selectedId = useTreeStore((state) => state.selectedId);
+  const select = useTreeStore((state) => state.select);
 
   if (!node) return null;
 
   const childCount = meta?.childrenIds.length ?? 0;
   const canExpand = Boolean(node.hasChildren || meta?.hasMore || childCount > 0);
+  const isSelected = selectedId === row.id;
+  const handleSelect = () => select(row.id);
 
   if (!canExpand) {
     return (
       <TreeNodeRowLayout
         node={node}
         row={row}
+        isSelected={isSelected}
         isExpanded={false}
         canExpand={false}
         childCount={childCount}
@@ -110,6 +115,7 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
         error={null}
         isStale={false}
         onToggle={() => {}}
+        onSelect={handleSelect}
       />
     );
   }
@@ -120,6 +126,8 @@ function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
       row={row}
       meta={meta}
       childCount={childCount}
+      isSelected={isSelected}
+      onSelect={handleSelect}
       toggleExpanded={toggleExpanded}
     />
   );
@@ -130,12 +138,16 @@ function ExpandableTreeNodeRow({
   row,
   meta,
   childCount,
+  isSelected,
+  onSelect,
   toggleExpanded,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
   meta?: NodeMeta;
   childCount: number;
+  isSelected: boolean;
+  onSelect: () => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
 }) {
   const isEnabled = meta?.isExpanded ?? false;
@@ -165,6 +177,7 @@ function ExpandableTreeNodeRow({
       node={node}
       row={row}
       isExpanded={isExpanded}
+      isSelected={isSelected}
       canExpand
       childCount={childCount}
       hasMore={meta?.hasMore ?? false}
@@ -172,6 +185,7 @@ function ExpandableTreeNodeRow({
       error={error}
       isStale={isStale}
       onToggle={handleToggle}
+      onSelect={onSelect}
       onPrefetch={prefetch}
     />
   );
@@ -181,6 +195,7 @@ function TreeNodeRowLayout({
   node,
   row,
   isExpanded,
+  isSelected,
   canExpand,
   childCount,
   hasMore,
@@ -188,11 +203,13 @@ function TreeNodeRowLayout({
   error,
   isStale,
   onToggle,
+  onSelect,
   onPrefetch,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
   isExpanded: boolean;
+  isSelected: boolean;
   canExpand: boolean;
   childCount: number;
   hasMore: boolean;
@@ -200,6 +217,7 @@ function TreeNodeRowLayout({
   error: unknown;
   isStale: boolean;
   onToggle: () => void;
+  onSelect: () => void;
   onPrefetch?: () => void;
 }) {
   const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
@@ -207,8 +225,9 @@ function TreeNodeRowLayout({
 
   return (
     <div
-      className="flex items-center gap-2 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2"
+      className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors ${isSelected ? "border-zinc-300 bg-zinc-100" : "border-zinc-100 bg-zinc-50 hover:border-zinc-200 hover:bg-zinc-100"}`}
       style={{ paddingLeft: row.depth * 16 + 12 }}
+      onClick={onSelect}
     >
       <button
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-zinc-200 text-xs font-semibold text-zinc-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
