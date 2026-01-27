@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchResultWithTimeout } from "@/lib/api";
-import { useRetryTelemetry } from "@/lib/hooks/useRetryTelemetry";
+import { useRetryTelemetry } from "./useRetryTelemetry";
 import { FETCH_TIMEOUT_MS } from "@/lib/query-config";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";

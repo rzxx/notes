@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useNotesChildren } from "@/lib/hooks/useNotesChildren";
-import { useCreateNote } from "@/lib/hooks/useCreateNote";
-import { useNote } from "@/lib/hooks/useNote";
-import { useRenameNote } from "@/lib/hooks/useRenameNote";
-import { useMoveNote } from "@/lib/hooks/useMoveNote";
-import { useDeleteNote } from "@/lib/hooks/useDeleteNote";
+import { useNotesChildren } from "@/lib/hooks/treeview/useNotesChildren";
+import { useCreateNote } from "@/lib/hooks/mutations/useCreateNote";
+import { useNote } from "@/lib/hooks/editor/useNote";
+import { useRenameNote } from "@/lib/hooks/mutations/useRenameNote";
+import { useMoveNote } from "@/lib/hooks/mutations/useMoveNote";
+import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
 
 export default function Home() {
   const [title, setTitle] = React.useState("");

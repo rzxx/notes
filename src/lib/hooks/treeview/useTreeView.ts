@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
-import { useNotesStaleness } from "@/lib/hooks/useNotesStaleness";
-import { usePrefetchNotesPage } from "@/lib/hooks/usePrefetchNotesPage";
-import { useTreePager } from "@/lib/hooks/useTreePager";
+import { useAutoLoadMore } from "./useAutoLoadMore";
+import { useNotesStaleness } from "./useNotesStaleness";
+import { usePrefetchNotesPage } from "./usePrefetchNotesPage";
+import { useTreePager } from "./useTreePager";
 import { useTreeStore, type NodeMeta } from "@/lib/stores/tree";
 
 export function useRootLoader() {
