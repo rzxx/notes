@@ -1,11 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useNotesStaleness } from "@/lib/hooks/useNotesStaleness";
-import { usePrefetchNotesPage } from "@/lib/hooks/usePrefetchNotesPage";
-import { useTreePager } from "@/lib/hooks/useTreePager";
 import { useTreeStore, type FlatRow, type NodeMeta, type Note } from "@/lib/stores/tree";
 import { TreeNodeRowLayout } from "./TreeNodeRowLayout";
+import { useExpandableRow } from "./hooks";
 
 export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   const node = useTreeStore((state) => state.nodes[row.id]);
@@ -42,13 +40,13 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
 
   return (
     <ExpandableTreeNodeRow
-      node={node}
       row={row}
       meta={meta}
       childCount={childCount}
       isSelected={isSelected}
       onSelect={handleSelect}
       toggleExpanded={toggleExpanded}
+      node={node}
     />
   );
 }
@@ -70,43 +68,28 @@ function ExpandableTreeNodeRow({
   onSelect: () => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
 }) {
-  const isEnabled = meta?.isExpanded ?? false;
-  const {
-    requestNext,
-    isFetching,
-    error,
-    isStale: queryIsStale,
-  } = useTreePager(row.id, {
-    enabled: isEnabled,
+  const expandable = useExpandableRow({
+    rowId: row.id,
+    meta,
+    childCount,
+    toggleExpanded,
   });
-  const isExpanded = meta?.isExpanded ?? false;
-  const isStale = useNotesStaleness(row.id, isEnabled, queryIsStale);
-  const prefetch = usePrefetchNotesPage(row.id);
-
-  const handleToggle = () => {
-    const next = !isExpanded;
-    toggleExpanded(row.id, next);
-
-    if (next && (childCount === 0 || meta?.hasMore)) {
-      requestNext();
-    }
-  };
 
   return (
     <TreeNodeRowLayout
       node={node}
       row={row}
-      isExpanded={isExpanded}
+      isExpanded={expandable.isExpanded}
       isSelected={isSelected}
       canExpand
       childCount={childCount}
-      hasMore={meta?.hasMore ?? false}
-      isFetching={isFetching}
-      error={error}
-      isStale={isStale}
-      onToggle={handleToggle}
+      hasMore={expandable.hasMore}
+      isFetching={expandable.isFetching}
+      error={expandable.error}
+      isStale={expandable.isStale}
+      onToggle={expandable.onToggle}
       onSelect={onSelect}
-      onPrefetch={prefetch}
+      onPrefetch={expandable.onPrefetch}
     />
   );
 }

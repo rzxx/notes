@@ -1,30 +1,21 @@
 "use client";
 
-import * as React from "react";
-import { useAutoLoadMore } from "@/lib/hooks/useAutoLoadMore";
-import { useTreePager } from "@/lib/hooks/useTreePager";
 import type { FlatRow } from "@/lib/stores/tree";
+import { useLoadMoreRow } from "./hooks";
 
 export function LoadMoreRow({ row }: { row: Extract<FlatRow, { kind: "loadMore" }> }) {
   const {
-    requestNext,
+    handleRequest,
     isFetching,
     error,
-    hasNextPage,
     attemptCount,
     failureCount,
     retriesRemaining,
     nextRetryInMs,
     totalRetries,
-  } = useTreePager(row.parentId);
-
-  const handleRequest = React.useCallback(() => {
-    if (isFetching) return;
-    requestNext();
-  }, [isFetching, requestNext]);
-
-  const shouldAutoLoad = hasNextPage !== false && !isFetching && !error;
-  const loadMoreRef = useAutoLoadMore({ enabled: shouldAutoLoad, onVisible: handleRequest });
+    shouldAutoLoad,
+    loadMoreRef,
+  } = useLoadMoreRow(row.parentId ?? null);
 
   return (
     <div

@@ -1,58 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
-import { useTreePager } from "@/lib/hooks/useTreePager";
 import { selectFlatRows, useTreeStore } from "@/lib/stores/tree";
-import { LoadMoreRow } from "./LoadMoreRow";
-import { TreeNodeRow } from "./TreeNodeRow";
+import { TreeRow } from "./TreeRow";
+import { useDanglingChildrenWarning, useRootLoader, useSyncRouteSelection } from "./hooks";
 
 export function TreeView() {
   const rows = useTreeStore(selectFlatRows);
-  const danglingCount = useTreeStore((state) => Object.keys(state.danglingByParent).length);
-  const routeParams = useParams<{ id?: string }>();
-  const routeSelectedId = typeof routeParams?.id === "string" ? routeParams.id : undefined;
-  const selectedId = useTreeStore((state) => state.selectedId);
-  const select = useTreeStore((state) => state.select);
-  const clearSelection = useTreeStore((state) => state.clearSelection);
+  const danglingCount = useDanglingChildrenWarning();
+  const { requestRoot, isFetchingRoot, rootError } = useRootLoader();
 
-  const {
-    requestNext: requestRoot,
-    isFetching: isFetchingRoot,
-    error: rootError,
-  } = useTreePager(null);
-  const hasRequestedRoot = React.useRef(false);
-
-  React.useEffect(() => {
-    if (hasRequestedRoot.current) return;
-    hasRequestedRoot.current = true;
-    requestRoot();
-  }, [requestRoot]);
-
-  React.useEffect(() => {
-    if (routeSelectedId) {
-      if (routeSelectedId !== selectedId) select(routeSelectedId);
-      return;
-    }
-
-    if (selectedId !== null) clearSelection();
-  }, [clearSelection, routeSelectedId, select, selectedId]);
-
-  React.useEffect(() => {
-    if (!danglingCount) return;
-    console.warn(
-      "dangling tree children waiting for parents",
-      useTreeStore.getState().danglingByParent,
-    );
-    const timeout = window.setTimeout(() => {
-      const dangling = useTreeStore.getState().danglingByParent;
-      if (Object.keys(dangling).length) {
-        console.warn("dangling tree children still pending", dangling);
-      }
-    }, 2000);
-
-    return () => window.clearTimeout(timeout);
-  }, [danglingCount]);
+  useSyncRouteSelection();
 
   return (
     <section className="rounded-lg border border-stone-200 bg-stone-50 p-4">
@@ -88,10 +46,12 @@ export function TreeView() {
           <p className="text-sm text-stone-500">Loading tree…</p>
         ) : null}
 
-        {rows.map((row) => {
-          if (row.kind === "node") return <TreeNodeRow key={row.id} row={row} />;
-          return <LoadMoreRow key={`${row.parentId ?? "root"}-more`} row={row} />;
-        })}
+        {rows.map((row) => (
+          <TreeRow
+            key={row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`}
+            row={row}
+          />
+        ))}
       </div>
     </section>
   );
