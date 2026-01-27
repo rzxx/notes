@@ -272,6 +272,13 @@ function attachToParent(
     return false;
   }
 
+  if (options?.expandParent && !parentMeta.isExpanded) {
+    parentMeta.isExpanded = true;
+    if (store.config.eviction) {
+      restoreEvictedChildren(store, parentId);
+    }
+  }
+
   if (store.config.eviction && !parentMeta.isExpanded) {
     const evictedBuckets = store.evictedChildren ?? (store.evictedChildren = {});
     const bucket = evictedBuckets[parentId] ?? [];
