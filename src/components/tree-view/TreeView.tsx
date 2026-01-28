@@ -1,54 +1,20 @@
-"use client";
-
-import * as React from "react";
-import { selectFlatRows, useTreeStore } from "@/lib/stores/tree";
-import { TreeRow } from "@/components/tree-view/TreeRow";
-import {
-  useDanglingChildrenWarning,
-  useRootLoader,
-  useSyncRouteSelection,
-} from "@/components/tree-view/hooks";
+import { TreeHeaderStatus } from "@/components/tree-view/TreeHeaderStatus";
+import { TreeScrollableContent } from "@/components/tree-view/TreeScrollableContent";
 
 export function TreeView() {
-  const rows = useTreeStore(selectFlatRows);
-  const danglingCount = useDanglingChildrenWarning();
-  const { requestRoot, isFetchingRoot, rootError } = useRootLoader();
-
-  useSyncRouteSelection();
-
   return (
-    <>
-      {danglingCount ? (
-        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-          Dangling {danglingCount}
-        </span>
-      ) : null}
+    <aside className="flex h-full w-80 shrink-0 flex-col gap-2 rounded-lg border border-stone-200 bg-stone-50 p-4">
+      <header className="shrink-0">
+        <h2 className="text-sm font-semibold tracking-wide text-stone-500 uppercase">Tree view</h2>
+      </header>
 
-      {rootError ? (
-        <div className="mt-3 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <span>Failed to load root nodes.</span>
-          <button
-            className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white"
-            onClick={requestRoot}
-            type="button"
-          >
-            Retry
-          </button>
-        </div>
-      ) : null}
-
-      <div className="space-y-1">
-        {rows.length === 0 && isFetchingRoot ? (
-          <p className="text-sm text-stone-500">Loading tree…</p>
-        ) : null}
-
-        {rows.map((row) => (
-          <TreeRow
-            key={row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`}
-            row={row}
-          />
-        ))}
+      <div className="shrink-0">
+        <TreeHeaderStatus />
       </div>
-    </>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <TreeScrollableContent />
+      </div>
+    </aside>
   );
 }
