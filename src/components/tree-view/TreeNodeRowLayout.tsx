@@ -29,6 +29,7 @@ export function TreeNodeRowLayout({
   onToggle,
   onSelect,
   onPrefetch,
+  onDelete,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -43,6 +44,7 @@ export function TreeNodeRowLayout({
   onToggle: () => void;
   onSelect: () => void;
   onPrefetch?: () => void;
+  onDelete?: () => void;
 }) {
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
 
@@ -95,11 +97,14 @@ export function TreeNodeRowLayout({
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner sideOffset={16} side="right">
-            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 flex gap-2 rounded-lg border border-stone-200 bg-stone-50 p-2 align-baseline shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
-              <Menu.Item>
+            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 flex gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 align-baseline shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
+              <Menu.Item className="rounded-lg p-2 transition-colors hover:cursor-pointer hover:bg-stone-200">
                 <MoveVertical size={24} className="text-stone-700" />
               </Menu.Item>
-              <Menu.Item>
+              <Menu.Item
+                onClick={onDelete}
+                className="rounded-lg p-2 transition-colors hover:cursor-pointer hover:bg-stone-200"
+              >
                 <Trash size={24} className="text-red-700" />
               </Menu.Item>
             </Menu.Popup>

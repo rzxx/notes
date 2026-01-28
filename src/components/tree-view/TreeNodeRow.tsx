@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTreeStore, type FlatRow, type NodeMeta, type Note } from "@/lib/stores/tree";
 import { TreeNodeRowLayout } from "@/components/tree-view/TreeNodeRowLayout";
 import { useExpandableRow } from "@/components/tree-view/hooks";
+import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
 
 export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
   const node = useTreeStore((state) => state.nodes[row.id]);
@@ -11,6 +12,12 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
   const selectedId = useTreeStore((state) => state.selectedId);
   const select = useTreeStore((state) => state.select);
+  const deleteNote = useDeleteNote();
+
+  const handleDelete = () => {
+    const parentId = node.parentId ?? null;
+    deleteNote.mutate({ noteId: row.id, parentId });
+  };
 
   if (!node) return null;
 
@@ -34,6 +41,7 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
         isStale={false}
         onToggle={() => {}}
         onSelect={handleSelect}
+        onDelete={handleDelete}
       />
     );
   }
@@ -47,6 +55,7 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
       onSelect={handleSelect}
       toggleExpanded={toggleExpanded}
       node={node}
+      onDelete={handleDelete}
     />
   );
 }
@@ -59,6 +68,7 @@ function ExpandableTreeNodeRow({
   isSelected,
   onSelect,
   toggleExpanded,
+  onDelete,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -67,6 +77,7 @@ function ExpandableTreeNodeRow({
   isSelected: boolean;
   onSelect: () => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
+  onDelete?: () => void;
 }) {
   const expandable = useExpandableRow({
     rowId: row.id,
@@ -90,6 +101,7 @@ function ExpandableTreeNodeRow({
       onToggle={expandable.onToggle}
       onSelect={onSelect}
       onPrefetch={expandable.onPrefetch}
+      onDelete={onDelete}
     />
   );
 }
