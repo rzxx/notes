@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { FlatRow, Note } from "@/lib/stores/tree";
+import { ChevronDown, ChevronRight, CircleAlert, Moon, MoveDown } from "lucide-react";
 
 export function TreeNodeRowLayout({
   node,
@@ -33,16 +34,15 @@ export function TreeNodeRowLayout({
   onSelect: () => void;
   onPrefetch?: () => void;
 }) {
-  const expandSymbol = canExpand ? (isExpanded ? "−" : "+") : "·";
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-md border px-3 py-2 transition-colors ${isSelected ? "border-stone-300 bg-stone-100" : "border-stone-100 bg-stone-50 hover:border-stone-200 hover:bg-stone-100"}`}
-      style={{ paddingLeft: row.depth * 16 + 12 }}
+      className={`flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"}`}
+      style={{ paddingLeft: row.depth * 12 }}
     >
       <button
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-stone-200 text-xs font-semibold text-stone-700 not-disabled:hover:cursor-pointer disabled:opacity-0"
+        className="shrink-0 text-stone-500 not-disabled:hover:cursor-pointer disabled:opacity-0"
         onClick={onToggle}
         onMouseEnter={onPrefetch}
         onFocus={onPrefetch}
@@ -50,40 +50,34 @@ export function TreeNodeRowLayout({
         title={expandTitle}
         type="button"
       >
-        {expandSymbol}
+        {isExpanded ? (
+          <ChevronDown strokeWidth={1.5} size={24} />
+        ) : (
+          <ChevronRight strokeWidth={1.5} size={24} />
+        )}
       </button>
 
-      <Link
-        href={`/note/${row.id}`}
-        onClick={onSelect}
-        className="flex flex-1 items-center gap-2 rounded-md px-2 py-1 ring-0 outline-none"
-      >
+      <Link href={`/note/${row.id}`} onNavigate={onSelect} className="flex flex-1 items-center">
         <div className="flex flex-1 flex-col">
-          <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
+          <div
+            className={`flex items-center gap-2 text-sm text-stone-700 ${isSelected ? "font-semibold" : "font-medium"} ${isFetching ? "animate-pulse" : ""}`}
+          >
             <span>{node.title}</span>
-            {isFetching ? (
+            {/* {isFetching ? (
               <span className="text-xs font-normal text-stone-500">Loading…</span>
-            ) : null}
+            ) : null} */}
           </div>
-          <div className="text-[11px] text-stone-500">{node.id}</div>
-        </div>
-
-        <div className="flex items-center gap-2 text-[11px] text-stone-500">
-          <span>
-            {childCount > 0 ? `${childCount} children` : canExpand ? "Has children" : "No children"}
-          </span>
-          {hasMore ? (
-            <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px]">More</span>
-          ) : null}
-          {isStale ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
-              Stale
-            </span>
-          ) : null}
+          {/* Can unhide IDs for debug purposes */}
+          {/* <div className="line-clamp-1 text-xs text-stone-400">{node.id}</div> */}
         </div>
       </Link>
 
-      {error ? <span className="text-[11px] text-red-600">Error</span> : null}
+      <div className="flex items-center gap-1 pr-1 text-sm text-stone-500 opacity-75">
+        <span>{childCount > 0 ? `${childCount}` : canExpand ? "?" : ""}</span>
+        {hasMore ? <MoveDown size={16} /> : null}
+        {isStale ? <Moon size={16} className="text-amber-400" /> : null}
+        {error ? <CircleAlert size={16} className="text-red-600" /> : null}
+      </div>
     </div>
   );
 }
