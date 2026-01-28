@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@variant starting-or-ending (&:is([data-starting-style], [data-ending-style]));
+
 body {
   position: relative;
 }

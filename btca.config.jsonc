@@ -64,7 +64,7 @@
     },
     {
       "type": "git",
-      "name": "baseUi",
+      "name": "base-ui",
       "url": "https://github.com/mui/base-ui",
       "branch": "master",
       "searchPath": "docs",

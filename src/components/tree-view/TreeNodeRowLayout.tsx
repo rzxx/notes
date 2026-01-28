@@ -2,8 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Menu } from "@base-ui/react/menu";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleAlert,
+  Ellipsis,
+  Moon,
+  MoveDown,
+  MoveVertical,
+  Trash,
+} from "lucide-react";
 import type { FlatRow, Note } from "@/lib/stores/tree";
-import { ChevronDown, ChevronRight, CircleAlert, Moon, MoveDown } from "lucide-react";
 
 export function TreeNodeRowLayout({
   node,
@@ -38,7 +48,7 @@ export function TreeNodeRowLayout({
 
   return (
     <div
-      className={`flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"}`}
+      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"}`}
       style={{ paddingLeft: row.depth * 12 }}
     >
       <button
@@ -72,12 +82,30 @@ export function TreeNodeRowLayout({
         </div>
       </Link>
 
-      <div className="flex items-center gap-1 pr-1 text-sm text-stone-500 opacity-75">
+      <div className="flex items-center gap-1 pr-1 text-sm text-stone-500 opacity-75 transition-opacity group-hover:opacity-0">
         <span>{childCount > 0 ? `${childCount}` : canExpand ? "?" : ""}</span>
         {hasMore ? <MoveDown size={16} /> : null}
         {isStale ? <Moon size={16} className="text-amber-400" /> : null}
         {error ? <CircleAlert size={16} className="text-red-600" /> : null}
       </div>
+
+      <Menu.Root>
+        <Menu.Trigger className="absolute right-0 mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:cursor-pointer">
+          <Ellipsis size={24} strokeWidth={1.5} className="text-stone-500" />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={16} side="right">
+            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 flex gap-2 rounded-lg border border-stone-200 bg-stone-50 p-2 align-baseline shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
+              <Menu.Item>
+                <MoveVertical size={24} className="text-stone-700" />
+              </Menu.Item>
+              <Menu.Item>
+                <Trash size={24} className="text-red-700" />
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
     </div>
   );
 }
