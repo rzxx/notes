@@ -62,6 +62,13 @@
       "branch": "main",
       "searchPath": "packages/docs/content",
     },
+    {
+      "type": "git",
+      "name": "baseUi",
+      "url": "https://github.com/mui/base-ui",
+      "branch": "master",
+      "searchPath": "docs",
+    },
   ],
   "model": "glm-4.7",
   "provider": "zai-coding-plan",
