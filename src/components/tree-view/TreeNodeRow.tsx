@@ -1,18 +1,51 @@
 "use client";
 
 import * as React from "react";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useTreeStore, type FlatRow, type NodeMeta, type Note } from "@/lib/stores/tree";
 import { TreeNodeRowLayout } from "@/components/tree-view/TreeNodeRowLayout";
 import { useExpandableRow } from "@/components/tree-view/hooks";
 import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
+import type { DropTarget, DropPosition } from "@/components/tree-view/tree-dnd-types";
 
-export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }) {
+export function TreeNodeRow({
+  row,
+  activeId,
+  dropTarget,
+}: {
+  row: Extract<FlatRow, { kind: "node" }>;
+  activeId: string | null;
+  dropTarget: DropTarget | null;
+}) {
   const node = useTreeStore((state) => state.nodes[row.id]);
   const meta = useTreeStore((state) => state.meta[row.id]);
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
   const selectedId = useTreeStore((state) => state.selectedId);
   const select = useTreeStore((state) => state.select);
   const deleteNote = useDeleteNote();
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    isDragging,
+  } = useDraggable({
+    id: row.id,
+    data: { kind: "node" },
+  });
+
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: row.id,
+    data: { kind: "node" },
+  });
+
+  const setRowRef = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      setDragRef(element);
+      setDropRef(element);
+    },
+    [setDragRef, setDropRef],
+  );
 
   const handleDelete = () => {
     const parentId = node.parentId ?? null;
@@ -25,6 +58,9 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
   const canExpand = Boolean(node.hasChildren || meta?.hasMore || childCount > 0);
   const isSelected = selectedId === row.id;
   const handleSelect = () => select(row.id);
+  const dropIndicator: DropPosition | null =
+    dropTarget?.overId === row.id ? dropTarget.position : null;
+  const isActiveRow = activeId === row.id;
 
   if (!canExpand) {
     return (
@@ -42,6 +78,11 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
         onToggle={() => {}}
         onSelect={handleSelect}
         onDelete={handleDelete}
+        dropIndicator={dropIndicator}
+        isDragging={isActiveRow || isDragging}
+        dragAttributes={attributes}
+        dragListeners={listeners}
+        setRowRef={setRowRef}
       />
     );
   }
@@ -56,6 +97,11 @@ export function TreeNodeRow({ row }: { row: Extract<FlatRow, { kind: "node" }> }
       toggleExpanded={toggleExpanded}
       node={node}
       onDelete={handleDelete}
+      dropIndicator={dropIndicator}
+      isDragging={isActiveRow || isDragging}
+      dragAttributes={attributes}
+      dragListeners={listeners}
+      setRowRef={setRowRef}
     />
   );
 }
@@ -69,6 +115,11 @@ function ExpandableTreeNodeRow({
   onSelect,
   toggleExpanded,
   onDelete,
+  dropIndicator,
+  isDragging,
+  dragAttributes,
+  dragListeners,
+  setRowRef,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -78,6 +129,11 @@ function ExpandableTreeNodeRow({
   onSelect: () => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
   onDelete?: () => void;
+  dropIndicator: DropPosition | null;
+  isDragging: boolean;
+  dragAttributes: ReturnType<typeof useDraggable>["attributes"];
+  dragListeners: ReturnType<typeof useDraggable>["listeners"];
+  setRowRef: (element: HTMLDivElement | null) => void;
 }) {
   const expandable = useExpandableRow({
     rowId: row.id,
@@ -102,6 +158,11 @@ function ExpandableTreeNodeRow({
       onSelect={onSelect}
       onPrefetch={expandable.onPrefetch}
       onDelete={onDelete}
+      dropIndicator={dropIndicator}
+      isDragging={isDragging}
+      dragAttributes={dragAttributes}
+      dragListeners={dragListeners}
+      setRowRef={setRowRef}
     />
   );
 }

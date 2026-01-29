@@ -30,6 +30,11 @@ export function TreeNodeRowLayout({
   onSelect,
   onPrefetch,
   onDelete,
+  dropIndicator = null,
+  isDragging = false,
+  dragAttributes,
+  dragListeners,
+  setRowRef,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -45,14 +50,37 @@ export function TreeNodeRowLayout({
   onSelect: () => void;
   onPrefetch?: () => void;
   onDelete?: () => void;
+  dropIndicator?: "before" | "after" | "inside" | null;
+  isDragging?: boolean;
+  dragAttributes?: React.HTMLAttributes<HTMLDivElement>;
+  dragListeners?: Record<string, unknown>;
+  setRowRef?: (element: HTMLDivElement | null) => void;
 }) {
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
+  const showDropInside = dropIndicator === "inside";
+  const showDropBefore = dropIndicator === "before";
+  const showDropAfter = dropIndicator === "after";
 
   return (
     <div
-      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"}`}
+      ref={setRowRef}
+      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"} ${showDropInside ? "bg-stone-200/60 ring-1 ring-stone-300" : ""} ${isDragging ? "opacity-40" : ""} cursor-grab active:cursor-grabbing`}
       style={{ paddingLeft: row.depth * 12 }}
+      {...dragAttributes}
+      {...dragListeners}
     >
+      {showDropBefore ? (
+        <div
+          className="pointer-events-none absolute top-0 right-2 left-0 h-0.5 bg-stone-400"
+          style={{ left: row.depth * 12 + 24 }}
+        />
+      ) : null}
+      {showDropAfter ? (
+        <div
+          className="pointer-events-none absolute right-2 bottom-0 left-0 h-0.5 bg-stone-400"
+          style={{ left: row.depth * 12 + 24 }}
+        />
+      ) : null}
       <button
         className="shrink-0 text-stone-500 not-disabled:hover:cursor-pointer disabled:opacity-0"
         onClick={onToggle}
