@@ -17,7 +17,7 @@ export function TreeDragOverlayRow({
 
   return (
     <div
-      className="pointer-events-none flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50/95 px-2 py-1 shadow-md"
+      className="pointer-events-none flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50/75 px-2 py-1 shadow-md"
       style={{ paddingLeft: depth * 12 + 8 }}
     >
       <div className="flex flex-col">
@@ -26,7 +26,7 @@ export function TreeDragOverlayRow({
       </div>
       <div className="ml-auto flex items-center gap-1 text-xs text-stone-500">
         {childCount > 0 ? <span>{childCount}</span> : null}
-        {hasUnknownChildren ? <span>has more</span> : null}
+        {hasUnknownChildren ? <span>Subtree</span> : null}
       </div>
     </div>
   );

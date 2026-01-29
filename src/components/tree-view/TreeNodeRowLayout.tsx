@@ -66,7 +66,7 @@ export function TreeNodeRowLayout({
   return (
     <div
       ref={setRowRef}
-      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"} ${showDropInside ? "bg-stone-200/60 ring-1 ring-stone-300" : ""} ${isParentDropTarget ? "bg-stone-200/40 ring-1 ring-stone-200" : ""} ${isDragging ? "opacity-40" : ""} cursor-grab active:cursor-grabbing`}
+      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"} ${showDropInside ? "bg-stone-200/60 ring-1 ring-stone-300" : ""} ${isParentDropTarget ? "bg-stone-200/40 ring-1 ring-stone-200" : ""} ${isDragging ? "opacity-25" : ""}`}
       style={{ paddingLeft: row.depth * 12 }}
       {...dragAttributes}
       {...dragListeners}
@@ -130,9 +130,6 @@ export function TreeNodeRowLayout({
         <Menu.Portal>
           <Menu.Positioner sideOffset={16} side="right">
             <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 flex gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 align-baseline shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
-              <Menu.Item className="rounded-lg p-2 transition-colors hover:cursor-pointer hover:bg-stone-200">
-                <MoveVertical size={24} className="text-stone-700" />
-              </Menu.Item>
               <Menu.Item
                 onClick={onDelete}
                 className="rounded-lg p-2 transition-colors hover:cursor-pointer hover:bg-stone-200"
