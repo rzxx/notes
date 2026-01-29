@@ -36,7 +36,6 @@ export function TreeNodeRowLayout({
   dragAttributes,
   dragListeners,
   setRowRef,
-  onTitleWidth,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -58,30 +57,11 @@ export function TreeNodeRowLayout({
   dragAttributes?: React.HTMLAttributes<HTMLDivElement>;
   dragListeners?: Record<string, unknown>;
   setRowRef?: (element: HTMLDivElement | null) => void;
-  onTitleWidth?: (id: string, width: number) => void;
 }) {
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
   const showDropInside = dropIndicator === "inside";
   const showDropBefore = dropIndicator === "before";
   const showDropAfter = dropIndicator === "after";
-
-  const titleElementRef = React.useRef<HTMLSpanElement | null>(null);
-
-  React.useLayoutEffect(() => {
-    if (!onTitleWidth) return;
-    const element = titleElementRef.current;
-    if (!element) return;
-    const report = () => onTitleWidth(node.id, element.getBoundingClientRect().width);
-    report();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(report);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [node.id, onTitleWidth]);
-
-  const titleRef = React.useCallback((element: HTMLSpanElement | null) => {
-    titleElementRef.current = element;
-  }, []);
 
   return (
     <div
@@ -124,7 +104,7 @@ export function TreeNodeRowLayout({
           <div
             className={`flex items-center gap-2 text-sm text-stone-700 ${isSelected ? "font-semibold" : "font-medium"} ${isFetching ? "animate-pulse" : ""}`}
           >
-            <span ref={titleRef}>{node.title}</span>
+            <span>{node.title}</span>
             {/* {isFetching ? (
               <span className="text-xs font-normal text-stone-500">Loading…</span>
             ) : null} */}

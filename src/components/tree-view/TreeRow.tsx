@@ -10,13 +10,11 @@ export function TreeRow({
   activeId,
   dropTarget,
   parentHighlightId,
-  onTitleWidth,
 }: {
   row: FlatRow;
   activeId: string | null;
   dropTarget: DropTarget | null;
   parentHighlightId: string | null;
-  onTitleWidth: (id: string, width: number) => void;
 }) {
   if (row.kind === "node") {
     return (
@@ -25,7 +23,6 @@ export function TreeRow({
         activeId={activeId}
         dropTarget={dropTarget}
         parentHighlightId={parentHighlightId}
-        onTitleWidth={onTitleWidth}
       />
     );
   }

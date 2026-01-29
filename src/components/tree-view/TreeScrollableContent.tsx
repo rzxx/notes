@@ -13,7 +13,6 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
-  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -33,18 +32,17 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 const getDropPosition = (
-  activeRect: { top: number; height: number; left: number; width: number } | null,
+  pointer: { x: number; y: number } | null,
   overRect: { top: number; height: number; left: number; width: number } | null,
   depth: number,
-  titleWidth: number | null,
+  titleWidth: number,
 ): DropPosition => {
-  if (!activeRect || !overRect) return "inside";
-  const centerY = activeRect.top + activeRect.height / 2;
-  const centerX = activeRect.left + activeRect.width / 2;
+  if (!pointer || !overRect) return "inside";
+  const centerY = pointer.y;
+  const centerX = pointer.x;
   const topEdge = overRect.top + overRect.height * 0.3;
   const bottomEdge = overRect.top + overRect.height * 0.7;
-  const desiredWidth = (titleWidth ?? 180) + 24;
-  const insideZoneWidth = Math.min(overRect.width * 0.5, desiredWidth);
+  const insideZoneWidth = Math.min(overRect.width * 0.5, titleWidth);
   const insideZoneLeft = overRect.left + depth * 12 + 24;
   const insideZoneRight = insideZoneLeft + insideZoneWidth;
   const allowInside = centerX >= insideZoneLeft && centerX <= insideZoneRight;
@@ -71,6 +69,14 @@ const isDescendant = (
   return false;
 };
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const getApproxTitleWidth = (title: string) => {
+  const averageCharWidth = 7.5;
+  const textWidth = title.length * averageCharWidth;
+  return clamp(textWidth, 80, 240) + 24;
+};
+
 export function TreeScrollableContent() {
   const rows = useTreeStore(selectFlatRows);
   const nodes = useTreeStore((state) => state.nodes);
@@ -86,7 +92,7 @@ export function TreeScrollableContent() {
     id: string;
     wasExpanded: boolean;
   } | null>(null);
-  const titleWidthsRef = React.useRef(new Map<string, number>());
+  const dragStartPointerRef = React.useRef<{ x: number; y: number } | null>(null);
 
   const { setNodeRef: setRootDropRef } = useDroppable({ id: ROOT_DROP_ID });
 
@@ -114,44 +120,67 @@ export function TreeScrollableContent() {
     return map;
   }, [rows]);
 
-  const setTitleWidth = React.useCallback((id: string, width: number) => {
-    if (!Number.isFinite(width)) return;
-    titleWidthsRef.current.set(id, width);
+  const isSameDropTarget = React.useCallback((a: DropTarget | null, b: DropTarget | null) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return (
+      a.overId === b.overId &&
+      a.position === b.position &&
+      a.newParentId === b.newParentId &&
+      a.beforeId === b.beforeId &&
+      a.afterId === b.afterId
+    );
+  }, []);
+
+  const getPointerFromEvent = React.useCallback((event: Event) => {
+    const touchEvent = event as TouchEvent;
+    if (typeof touchEvent.touches !== "undefined") {
+      const touch = touchEvent.touches[0] ?? touchEvent.changedTouches[0];
+      return touch ? { x: touch.clientX, y: touch.clientY } : null;
+    }
+    const mouseEvent = event as MouseEvent;
+    if (typeof mouseEvent.clientX === "number" && typeof mouseEvent.clientY === "number") {
+      return { x: mouseEvent.clientX, y: mouseEvent.clientY };
+    }
+    return null;
   }, []);
 
   const updateDropTarget = React.useCallback(
-    (event: DragMoveEvent | DragOverEvent) => {
+    (event: DragOverEvent) => {
       if (!activeId || !event.over) {
-        setDropTarget(null);
+        setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
       const overId = String(event.over.id);
       if (overId === ROOT_DROP_ID) {
-        setDropTarget({
+        const nextTarget = {
           overId,
-          position: "after",
+          position: "after" as const,
           newParentId: null,
           beforeId: null,
           afterId: null,
-        });
+        };
+        setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
         return;
       }
 
       if (!nodes[overId]) {
-        setDropTarget(null);
+        setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
-      const activeRect =
-        event.active.rect.current.translated ?? event.active.rect.current.initial ?? null;
       const overRect = event.over.rect ?? null;
       const overDepth = rowDepthById.get(overId) ?? 0;
-      const titleWidth = titleWidthsRef.current.get(overId) ?? null;
-      const position = getDropPosition(activeRect, overRect, overDepth, titleWidth);
+      const startPointer = dragStartPointerRef.current;
+      const pointer = startPointer
+        ? { x: startPointer.x + event.delta.x, y: startPointer.y + event.delta.y }
+        : null;
+      const titleWidth = getApproxTitleWidth(nodes[overId]?.title ?? "");
+      const position = getDropPosition(pointer, overRect, overDepth, titleWidth);
 
       if (overId === activeId) {
-        setDropTarget(null);
+        setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
@@ -161,18 +190,19 @@ export function TreeScrollableContent() {
       const afterId = position === "after" ? overId : null;
 
       if (newParentId === activeId) {
-        setDropTarget(null);
+        setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
       if (isDescendant(activeId, newParentId, meta)) {
-        setDropTarget(null);
+        setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
-      setDropTarget({ overId, position, newParentId, beforeId, afterId });
+      const nextTarget = { overId, position, newParentId, beforeId, afterId };
+      setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
     },
-    [activeId, meta, nodes, rowDepthById],
+    [activeId, isSameDropTarget, meta, nodes, rowDepthById],
   );
 
   const parentHighlightId =
@@ -183,6 +213,7 @@ export function TreeScrollableContent() {
       const nextId = String(event.active.id);
       setActiveId(nextId);
       setDropTarget(null);
+      dragStartPointerRef.current = getPointerFromEvent(event.activatorEvent);
 
       const wasExpanded = meta[nextId]?.isExpanded ?? false;
       if (wasExpanded) {
@@ -192,7 +223,7 @@ export function TreeScrollableContent() {
         setCollapsedSnapshot({ id: nextId, wasExpanded: false });
       }
     },
-    [meta, toggleExpanded],
+    [getPointerFromEvent, meta, toggleExpanded],
   );
 
   const handleDragEnd = React.useCallback(
@@ -213,6 +244,7 @@ export function TreeScrollableContent() {
       setActiveId(null);
       setDropTarget(null);
       setCollapsedSnapshot(null);
+      dragStartPointerRef.current = null;
     },
     [collapsedSnapshot, dropTarget, moveNode, toggleExpanded],
   );
@@ -224,6 +256,7 @@ export function TreeScrollableContent() {
     setActiveId(null);
     setDropTarget(null);
     setCollapsedSnapshot(null);
+    dragStartPointerRef.current = null;
   }, [collapsedSnapshot, toggleExpanded]);
 
   return (
@@ -231,7 +264,6 @@ export function TreeScrollableContent() {
       sensors={sensors}
       collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
-      onDragMove={updateDropTarget}
       onDragOver={updateDropTarget}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
@@ -252,7 +284,6 @@ export function TreeScrollableContent() {
               activeId={activeId}
               dropTarget={dropTarget}
               parentHighlightId={parentHighlightId}
-              onTitleWidth={setTitleWidth}
             />
           );
         })}
