@@ -70,14 +70,6 @@ const isDescendant = (
   return false;
 };
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-const getApproxTitleWidth = (title: string) => {
-  const averageCharWidth = 7.5;
-  const textWidth = title.length * averageCharWidth;
-  return clamp(textWidth, 80, 240) + 24;
-};
-
 export function TreeScrollableContent() {
   const rows = useTreeStore(selectFlatRows);
   const nodes = useTreeStore((state) => state.nodes);
@@ -112,14 +104,6 @@ export function TreeScrollableContent() {
     const row = rows.find((item) => item.kind === "node" && item.id === activeId);
     return row?.depth ?? 0;
   }, [activeId, rows]);
-
-  const rowDepthById = React.useMemo(() => {
-    const map = new Map<string, number>();
-    rows.forEach((row) => {
-      if (row.kind === "node") map.set(row.id, row.depth);
-    });
-    return map;
-  }, [rows]);
 
   const isSameDropTarget = React.useCallback((a: DropTarget | null, b: DropTarget | null) => {
     if (!a && !b) return true;
@@ -166,18 +150,22 @@ export function TreeScrollableContent() {
         return;
       }
 
-      if (!nodes[overId]) {
+      const overData = event.over.data.current as
+        | { kind?: string; depth?: number; titleWidth?: number; parentId?: string | null }
+        | undefined;
+
+      if (!overData || overData.kind !== "node") {
         setDropTarget((prev) => (prev ? null : prev));
         return;
       }
 
       const overRect = event.over.rect ?? null;
-      const overDepth = rowDepthById.get(overId) ?? 0;
+      const overDepth = overData.depth ?? 0;
       const startPointer = dragStartPointerRef.current;
       const pointer = startPointer
         ? { x: startPointer.x + event.delta.x, y: startPointer.y + event.delta.y }
         : null;
-      const titleWidth = getApproxTitleWidth(nodes[overId]?.title ?? "");
+      const titleWidth = overData.titleWidth ?? 160;
       const position = getDropPosition(pointer, overRect, overDepth, titleWidth);
 
       if (overId === activeId) {
@@ -185,8 +173,7 @@ export function TreeScrollableContent() {
         return;
       }
 
-      const overNode = nodes[overId];
-      const newParentId = position === "inside" ? overId : (overNode.parentId ?? null);
+      const newParentId = position === "inside" ? overId : (overData.parentId ?? null);
       const beforeId = position === "before" ? overId : null;
       const afterId = position === "after" ? overId : null;
 
@@ -203,7 +190,7 @@ export function TreeScrollableContent() {
       const nextTarget = { overId, position, newParentId, beforeId, afterId };
       setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
     },
-    [activeId, isSameDropTarget, meta, nodes, rowDepthById],
+    [activeId, isSameDropTarget, meta],
   );
 
   const parentHighlightId =
@@ -266,7 +253,6 @@ export function TreeScrollableContent() {
       collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragMove={updateDropTarget}
-      onDragOver={updateDropTarget}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}

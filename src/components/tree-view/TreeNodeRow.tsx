@@ -8,6 +8,14 @@ import { useExpandableRow } from "@/components/tree-view/hooks";
 import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
 import type { DropTarget, DropPosition } from "@/components/tree-view/tree-dnd-types";
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const getApproxTitleWidth = (title: string) => {
+  const averageCharWidth = 7.5;
+  const textWidth = title.length * averageCharWidth;
+  return clamp(textWidth, 80, 240) + 24;
+};
+
 export function TreeNodeRow({
   row,
   activeId,
@@ -38,7 +46,12 @@ export function TreeNodeRow({
 
   const { setNodeRef: setDropRef } = useDroppable({
     id: row.id,
-    data: { kind: "node" },
+    data: {
+      kind: "node",
+      depth: row.depth,
+      titleWidth: getApproxTitleWidth(node?.title ?? ""),
+      parentId: node?.parentId ?? null,
+    },
   });
 
   const setRowRef = React.useCallback(
