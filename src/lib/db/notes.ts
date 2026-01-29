@@ -5,7 +5,7 @@ import { eq, sql, and, desc, lt, or, isNull, ne, gt, inArray, asc } from "drizzl
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/errors";
 import { parseCursor } from "@/lib/server/utils";
-import { rankAfter, rankBetween, rankInitial } from "@/lib/lexorank";
+import { rankAfter, rankBefore, rankBetween, rankInitial } from "@/lib/lexorank";
 
 export async function createNote(input: {
   userId: string;
@@ -101,25 +101,74 @@ export async function deleteNote(input: { userId: string; noteId: string }) {
   try {
     await db.transaction(async (tx) => {
       // 1) fetch parentId
-      const parentId = await tx
-        .select({ parentId: notes.parentId })
+      const noteRows = await tx
+        .select({ parentId: notes.parentId, rank: notes.rank })
         .from(notes)
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-      if (!parentId[0]) {
+      const note = noteRows[0];
+      if (!note) {
         throw Errors.NOTE_NOT_FOUND(input.noteId);
       }
 
-      // 2) reparent children
-      await tx
-        .update(notes)
-        .set({
-          parentId: parentId[0].parentId,
-        })
-        .where(and(eq(notes.userId, input.userId), eq(notes.parentId, input.noteId)));
+      const targetParentId = note.parentId ?? null;
+
+      const children = await tx
+        .select({ id: notes.id, rank: notes.rank })
+        .from(notes)
+        .where(and(eq(notes.userId, input.userId), eq(notes.parentId, input.noteId)))
+        .orderBy(asc(notes.rank), asc(notes.id));
+
+      if (children.length > 0) {
+        const parentWhere = targetParentId
+          ? eq(notes.parentId, targetParentId)
+          : isNull(notes.parentId);
+
+        const nextSibling = await tx
+          .select({ rank: notes.rank })
+          .from(notes)
+          .where(and(eq(notes.userId, input.userId), parentWhere, gt(notes.rank, note.rank)))
+          .orderBy(asc(notes.rank), asc(notes.id))
+          .limit(1);
+
+        const prevSibling = await tx
+          .select({ rank: notes.rank })
+          .from(notes)
+          .where(and(eq(notes.userId, input.userId), parentWhere, lt(notes.rank, note.rank)))
+          .orderBy(desc(notes.rank), desc(notes.id))
+          .limit(1);
+
+        const tempRank = prevSibling[0]
+          ? rankBetween(prevSibling[0].rank, note.rank)
+          : rankBefore(note.rank);
+
+        await tx
+          .update(notes)
+          .set({ rank: tempRank })
+          .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+        let prevRank = note.rank;
+        const upperRank = nextSibling[0]?.rank ?? null;
+
+        for (let index = 0; index < children.length; index += 1) {
+          const child = children[index];
+          const newRank =
+            index === 0
+              ? note.rank
+              : upperRank
+                ? rankBetween(prevRank, upperRank)
+                : rankAfter(prevRank);
+          prevRank = newRank;
+
+          await tx
+            .update(notes)
+            .set({ parentId: targetParentId, rank: newRank })
+            .where(and(eq(notes.userId, input.userId), eq(notes.id, child.id)));
+        }
+      }
 
       // 3) update closure depths for lifted subtrees
-      if (parentId[0].parentId) {
+      if (note.parentId) {
         const ancestorIds = tx
           .select({ ancestorId: noteClosure.ancestorId })
           .from(noteClosure)
