@@ -36,6 +36,13 @@ type TreeActions = {
   upsertNodes: (parentId: string | null, notes: Note[], page: Pagination) => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
   removeNode: (id: string) => void;
+  deleteNodeAndLift: (id: string) => {
+    node: Note;
+    meta?: NodeMeta;
+    parentId: string | null;
+    index: number;
+    childrenIds: string[];
+  } | null;
   moveNode: (id: string, newParentId: string | null, index?: number) => void;
   restoreNode: (input: {
     node: Note;
@@ -161,6 +168,77 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
         });
       }),
     ),
+
+  deleteNodeAndLift: (id) => {
+    let snapshot: {
+      node: Note;
+      meta?: NodeMeta;
+      parentId: string | null;
+      index: number;
+      childrenIds: string[];
+    } | null = null;
+
+    set((state) =>
+      produce(state, (draft) => {
+        const node = draft.nodes[id];
+        if (!node) return;
+
+        const meta = draft.meta[id];
+        const parentId = node.parentId ?? null;
+        const parentMeta = parentId === null ? null : draft.meta[parentId];
+        const index =
+          parentId === null
+            ? draft.rootIds.indexOf(id)
+            : (parentMeta?.childrenIds.indexOf(id) ?? -1);
+        const childrenIds = meta?.childrenIds ? [...meta.childrenIds] : [];
+
+        snapshot = {
+          node: { ...node },
+          meta: meta ? { ...meta, childrenIds: [...meta.childrenIds] } : undefined,
+          parentId,
+          index,
+          childrenIds,
+        };
+
+        childrenIds.forEach((childId) => {
+          const child = draft.nodes[childId];
+          if (!child) return;
+
+          const oldParentId = child.parentId ?? null;
+          detachFromParent(draft, oldParentId, childId);
+
+          child.parentId = parentId;
+          if (parentId === null) {
+            draft.rootIds = mergeSortedIds(draft.rootIds, [childId], draft.nodes);
+          } else {
+            const newMeta = ensureMeta(draft.meta, parentId);
+            newMeta.childrenIds = mergeSortedIds(
+              withoutId(newMeta.childrenIds, childId),
+              [childId],
+              draft.nodes,
+            );
+            newMeta.isExpanded = true;
+          }
+        });
+
+        delete draft.nodes[id];
+        delete draft.meta[id];
+        delete draft.danglingByParent[id];
+
+        if (draft.selectedId === id) {
+          draft.selectedId = null;
+        }
+
+        draft.rootIds = withoutId(draft.rootIds, id);
+
+        Object.values(draft.meta).forEach((meta) => {
+          meta.childrenIds = withoutId(meta.childrenIds, id);
+        });
+      }),
+    );
+
+    return snapshot;
+  },
 
   moveNode: (id, newParentId) =>
     set((state) =>

@@ -38,33 +38,9 @@ export function useDeleteNote() {
       ]);
 
       const state = useTreeStore.getState();
-      const node = state.nodes[variables.noteId];
-      const meta = state.meta[variables.noteId];
-      const parentId = node?.parentId ?? variables.parentId ?? null;
-      const parentMeta = parentId === null ? null : state.meta[parentId];
-      const index =
-        parentId === null
-          ? state.rootIds.indexOf(variables.noteId)
-          : (parentMeta?.childrenIds.indexOf(variables.noteId) ?? -1);
+      const snapshot = state.deleteNodeAndLift(variables.noteId);
 
-      const childrenIds = meta?.childrenIds ?? [];
-      childrenIds.forEach((childId) => {
-        state.moveNode(childId, parentId);
-      });
-
-      state.removeNode(variables.noteId);
-
-      return node
-        ? {
-            snapshot: {
-              node,
-              meta,
-              parentId,
-              index,
-              childrenIds,
-            },
-          }
-        : null;
+      return snapshot ? { snapshot } : null;
     },
     onError: (_error, _variables, context) => {
       if (!context?.snapshot) return;
