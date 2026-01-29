@@ -289,7 +289,7 @@ export async function moveNote(input: {
               ne(notes.id, input.noteId),
               or(
                 gt(notes.rank, anchorRank),
-                and(eq(notes.rank, anchorRank), anchorId ? lt(notes.id, anchorId) : sql`false`),
+                and(eq(notes.rank, anchorRank), anchorId ? gt(notes.id, anchorId) : sql`false`),
               ),
             ),
           )
