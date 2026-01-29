@@ -13,6 +13,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -146,7 +147,7 @@ export function TreeScrollableContent() {
   }, []);
 
   const updateDropTarget = React.useCallback(
-    (event: DragOverEvent) => {
+    (event: DragMoveEvent | DragOverEvent) => {
       if (!activeId || !event.over) {
         setDropTarget((prev) => (prev ? null : prev));
         return;
@@ -264,6 +265,7 @@ export function TreeScrollableContent() {
       sensors={sensors}
       collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
+      onDragMove={updateDropTarget}
       onDragOver={updateDropTarget}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
