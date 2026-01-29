@@ -1,5 +1,6 @@
 "use client";
 
+import { compareRanks } from "@/lib/lexorank";
 import { create as produce } from "mutative";
 import { create } from "zustand";
 
@@ -77,7 +78,7 @@ const ensureMeta = (meta: Record<string, NodeMeta>, id: string) => {
 const compareByRank = (nodes: Record<string, Note>) => (a: string, b: string) => {
   const aRank = nodes[a]?.rank ?? "";
   const bRank = nodes[b]?.rank ?? "";
-  if (aRank !== bRank) return aRank.localeCompare(bRank);
+  if (aRank !== bRank) return compareRanks(aRank, bRank);
   return a.localeCompare(b);
 };
 

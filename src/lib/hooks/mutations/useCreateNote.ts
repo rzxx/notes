@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
+import { rankAfter, rankInitial } from "@/lib/lexorank";
 
 type CreateNoteInput = {
   parentId: string | null;
@@ -45,6 +46,14 @@ export function useCreateNote() {
       const state = useTreeStore.getState();
       const createdAt = new Date().toISOString();
 
+      const siblings =
+        variables.parentId === null
+          ? state.rootIds
+          : (state.meta[variables.parentId]?.childrenIds ?? []);
+      const lastSiblingId = siblings[siblings.length - 1];
+      const lastRank = lastSiblingId ? (state.nodes[lastSiblingId]?.rank ?? null) : null;
+      const optimisticRank = lastRank ? rankAfter(lastRank) : rankInitial();
+
       const pagination =
         variables.parentId === null ? state.rootPagination : state.meta[variables.parentId];
 
@@ -56,7 +65,7 @@ export function useCreateNote() {
             parentId: variables.parentId,
             title: variables.title,
             hasChildren: false,
-            rank: "",
+            rank: optimisticRank,
             createdAt,
           },
         ],
