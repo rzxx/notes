@@ -43,6 +43,13 @@ type TreeActions = {
     index: number;
     childrenIds: string[];
   } | null;
+  moveNodeWithSnapshot: (
+    id: string,
+    newParentId: string | null,
+  ) => {
+    oldParentId: string | null;
+    oldIndex: number;
+  } | null;
   moveNode: (id: string, newParentId: string | null, index?: number) => void;
   restoreNode: (input: {
     node: Note;
@@ -89,6 +96,14 @@ const detachFromParent = (draft: TreeState, parentId: string | null, id: string)
 
   const meta = draft.meta[parentId];
   if (meta) meta.childrenIds = withoutId(meta.childrenIds, id);
+
+  const bucket = draft.danglingByParent[parentId];
+  if (bucket) {
+    draft.danglingByParent[parentId] = withoutId(bucket, id);
+    if (draft.danglingByParent[parentId].length === 0) {
+      delete draft.danglingByParent[parentId];
+    }
+  }
 };
 
 export const useTreeStore = create<TreeState & TreeActions>((set) => ({
@@ -234,6 +249,57 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
         Object.values(draft.meta).forEach((meta) => {
           meta.childrenIds = withoutId(meta.childrenIds, id);
         });
+      }),
+    );
+
+    return snapshot;
+  },
+
+  moveNodeWithSnapshot: (id, newParentId) => {
+    let snapshot: { oldParentId: string | null; oldIndex: number } | null = null;
+
+    set((state) =>
+      produce(state, (draft) => {
+        const node = draft.nodes[id];
+        if (!node) return;
+
+        const oldParentId = node.parentId ?? null;
+        const oldParentMeta = oldParentId === null ? null : draft.meta[oldParentId];
+        const oldIndex =
+          oldParentId === null
+            ? draft.rootIds.indexOf(id)
+            : (oldParentMeta?.childrenIds.indexOf(id) ?? -1);
+
+        snapshot = { oldParentId, oldIndex };
+
+        if (newParentId !== null && !draft.nodes[newParentId]) {
+          detachFromParent(draft, oldParentId, id);
+          const bucket = draft.danglingByParent[newParentId] ?? [];
+          draft.danglingByParent[newParentId] = mergeSortedIds(bucket, [id], draft.nodes);
+          node.parentId = newParentId;
+          return;
+        }
+
+        if (oldParentId === null) {
+          draft.rootIds = withoutId(draft.rootIds, id);
+        } else {
+          const oldMeta = draft.meta[oldParentId];
+          if (oldMeta) oldMeta.childrenIds = withoutId(oldMeta.childrenIds, id);
+        }
+
+        if (newParentId === null) {
+          draft.rootIds = mergeSortedIds(draft.rootIds, [id], draft.nodes);
+        } else {
+          const newMeta = ensureMeta(draft.meta, newParentId);
+          newMeta.childrenIds = mergeSortedIds(
+            withoutId(newMeta.childrenIds, id),
+            [id],
+            draft.nodes,
+          );
+          newMeta.isExpanded = true;
+        }
+
+        node.parentId = newParentId;
       }),
     );
 

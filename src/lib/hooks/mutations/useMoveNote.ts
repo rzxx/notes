@@ -42,22 +42,17 @@ export function useMoveNote() {
       ]);
 
       const state = useTreeStore.getState();
-      const node = state.nodes[variables.noteId];
-      const oldParentId = node?.parentId ?? variables.previousParentId ?? null;
-      const oldIndex =
-        oldParentId === null
-          ? state.rootIds.indexOf(variables.noteId)
-          : (state.meta[oldParentId]?.childrenIds.indexOf(variables.noteId) ?? -1);
+      const snapshot = state.moveNodeWithSnapshot(variables.noteId, variables.newParentId ?? null);
 
-      state.moveNode(variables.noteId, variables.newParentId ?? null);
-
-      return { nodeExists: Boolean(node), oldParentId, oldIndex } as const;
+      return snapshot ? { snapshot } : null;
     },
     onError: (_error, variables, context) => {
-      if (!context?.nodeExists) return;
-      useTreeStore
-        .getState()
-        .moveNode(variables.noteId, context.oldParentId ?? null, context.oldIndex);
+      if (context?.snapshot) {
+        useTreeStore.getState().moveNode(variables.noteId, context.snapshot.oldParentId ?? null);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.previousParentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.list(variables.newParentId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
