@@ -11,7 +11,9 @@ export function TreeScrollableContent() {
   useSyncRouteSelection();
 
   return (
-    <div className="space-y-1">
+    <div
+      className={`space-y-1 transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
+    >
       {rows.map((row) => (
         <TreeRow key={row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`} row={row} />
       ))}

@@ -15,10 +15,10 @@ export function TreeHeaderStatus() {
       ) : null}
 
       {rootError ? (
-        <div className="mt-3 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <span>Failed to load root nodes.</span>
+        <div className="flex h-full items-center gap-1 text-sm text-red-700">
+          <span>Failed to load notes.</span>
           <button
-            className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white"
+            className="cursor-pointer rounded-md bg-red-700 px-3 py-0.5 text-xs font-semibold text-white"
             onClick={requestRoot}
             type="button"
           >
