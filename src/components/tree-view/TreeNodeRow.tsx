@@ -12,10 +12,14 @@ export function TreeNodeRow({
   row,
   activeId,
   dropTarget,
+  parentHighlightId,
+  onTitleWidth,
 }: {
   row: Extract<FlatRow, { kind: "node" }>;
   activeId: string | null;
   dropTarget: DropTarget | null;
+  parentHighlightId: string | null;
+  onTitleWidth: (id: string, width: number) => void;
 }) {
   const node = useTreeStore((state) => state.nodes[row.id]);
   const meta = useTreeStore((state) => state.meta[row.id]);
@@ -61,6 +65,7 @@ export function TreeNodeRow({
   const dropIndicator: DropPosition | null =
     dropTarget?.overId === row.id ? dropTarget.position : null;
   const isActiveRow = activeId === row.id;
+  const isParentDropTarget = parentHighlightId === row.id;
 
   if (!canExpand) {
     return (
@@ -79,10 +84,12 @@ export function TreeNodeRow({
         onSelect={handleSelect}
         onDelete={handleDelete}
         dropIndicator={dropIndicator}
+        isParentDropTarget={isParentDropTarget}
         isDragging={isActiveRow || isDragging}
         dragAttributes={attributes}
         dragListeners={listeners}
         setRowRef={setRowRef}
+        onTitleWidth={onTitleWidth}
       />
     );
   }
@@ -98,10 +105,12 @@ export function TreeNodeRow({
       node={node}
       onDelete={handleDelete}
       dropIndicator={dropIndicator}
+      isParentDropTarget={isParentDropTarget}
       isDragging={isActiveRow || isDragging}
       dragAttributes={attributes}
       dragListeners={listeners}
       setRowRef={setRowRef}
+      onTitleWidth={onTitleWidth}
     />
   );
 }
@@ -116,10 +125,12 @@ function ExpandableTreeNodeRow({
   toggleExpanded,
   onDelete,
   dropIndicator,
+  isParentDropTarget,
   isDragging,
   dragAttributes,
   dragListeners,
   setRowRef,
+  onTitleWidth,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -130,10 +141,12 @@ function ExpandableTreeNodeRow({
   toggleExpanded: (id: string, expanded?: boolean) => void;
   onDelete?: () => void;
   dropIndicator: DropPosition | null;
+  isParentDropTarget: boolean;
   isDragging: boolean;
   dragAttributes: ReturnType<typeof useDraggable>["attributes"];
   dragListeners: ReturnType<typeof useDraggable>["listeners"];
   setRowRef: (element: HTMLDivElement | null) => void;
+  onTitleWidth: (id: string, width: number) => void;
 }) {
   const expandable = useExpandableRow({
     rowId: row.id,
@@ -159,10 +172,12 @@ function ExpandableTreeNodeRow({
       onPrefetch={expandable.onPrefetch}
       onDelete={onDelete}
       dropIndicator={dropIndicator}
+      isParentDropTarget={isParentDropTarget}
       isDragging={isDragging}
       dragAttributes={dragAttributes}
       dragListeners={dragListeners}
       setRowRef={setRowRef}
+      onTitleWidth={onTitleWidth}
     />
   );
 }

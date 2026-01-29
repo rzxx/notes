@@ -441,14 +441,7 @@ export type { Note, NodeMeta, TreeState, TreeActions };
 
 type NodeRow = { kind: "node"; id: string; depth: number };
 type LoadMoreRow = { kind: "loadMore"; parentId: string | null; depth: number };
-type PlaceholderRow = {
-  kind: "placeholder";
-  parentId: string | null;
-  depth: number;
-  position: "before" | "after" | "inside";
-};
-
-export type FlatRow = NodeRow | LoadMoreRow | PlaceholderRow;
+export type FlatRow = NodeRow | LoadMoreRow;
 
 const makeFlatSelector = () => {
   let prevRootIds: string[] | null = null;

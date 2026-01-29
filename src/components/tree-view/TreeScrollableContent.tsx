@@ -33,16 +33,25 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 const getDropPosition = (
-  activeRect: { top: number; height: number } | null,
-  overRect: { top: number; height: number } | null,
+  activeRect: { top: number; height: number; left: number; width: number } | null,
+  overRect: { top: number; height: number; left: number; width: number } | null,
+  depth: number,
+  titleWidth: number | null,
 ): DropPosition => {
   if (!activeRect || !overRect) return "inside";
   const centerY = activeRect.top + activeRect.height / 2;
+  const centerX = activeRect.left + activeRect.width / 2;
   const topEdge = overRect.top + overRect.height * 0.3;
   const bottomEdge = overRect.top + overRect.height * 0.7;
+  const desiredWidth = (titleWidth ?? 180) + 24;
+  const insideZoneWidth = Math.min(overRect.width * 0.5, desiredWidth);
+  const insideZoneLeft = overRect.left + depth * 12 + 24;
+  const insideZoneRight = insideZoneLeft + insideZoneWidth;
+  const allowInside = centerX >= insideZoneLeft && centerX <= insideZoneRight;
+  if (allowInside) return "inside";
   if (centerY < topEdge) return "before";
   if (centerY > bottomEdge) return "after";
-  return "inside";
+  return centerY < overRect.top + overRect.height / 2 ? "before" : "after";
 };
 
 const isDescendant = (
@@ -77,6 +86,7 @@ export function TreeScrollableContent() {
     id: string;
     wasExpanded: boolean;
   } | null>(null);
+  const titleWidthsRef = React.useRef(new Map<string, number>());
 
   const { setNodeRef: setRootDropRef } = useDroppable({ id: ROOT_DROP_ID });
 
@@ -95,6 +105,19 @@ export function TreeScrollableContent() {
     const row = rows.find((item) => item.kind === "node" && item.id === activeId);
     return row?.depth ?? 0;
   }, [activeId, rows]);
+
+  const rowDepthById = React.useMemo(() => {
+    const map = new Map<string, number>();
+    rows.forEach((row) => {
+      if (row.kind === "node") map.set(row.id, row.depth);
+    });
+    return map;
+  }, [rows]);
+
+  const setTitleWidth = React.useCallback((id: string, width: number) => {
+    if (!Number.isFinite(width)) return;
+    titleWidthsRef.current.set(id, width);
+  }, []);
 
   const updateDropTarget = React.useCallback(
     (event: DragMoveEvent | DragOverEvent) => {
@@ -123,7 +146,9 @@ export function TreeScrollableContent() {
       const activeRect =
         event.active.rect.current.translated ?? event.active.rect.current.initial ?? null;
       const overRect = event.over.rect ?? null;
-      const position = getDropPosition(activeRect, overRect);
+      const overDepth = rowDepthById.get(overId) ?? 0;
+      const titleWidth = titleWidthsRef.current.get(overId) ?? null;
+      const position = getDropPosition(activeRect, overRect, overDepth, titleWidth);
 
       if (overId === activeId) {
         setDropTarget(null);
@@ -147,49 +172,11 @@ export function TreeScrollableContent() {
 
       setDropTarget({ overId, position, newParentId, beforeId, afterId });
     },
-    [activeId, meta, nodes],
+    [activeId, meta, nodes, rowDepthById],
   );
 
-  const rowsWithPlaceholder = React.useMemo(() => {
-    if (!activeId || !dropTarget) return rows;
-
-    const filtered = rows.filter((row) => !(row.kind === "node" && row.id === activeId));
-
-    if (dropTarget.overId === ROOT_DROP_ID) {
-      const placeholder: Extract<(typeof rows)[number], { kind: "placeholder" }> = {
-        kind: "placeholder",
-        parentId: null,
-        depth: 0,
-        position: dropTarget.position,
-      };
-      return [...filtered, placeholder];
-    }
-
-    const overIndex = filtered.findIndex(
-      (row) => row.kind === "node" && row.id === dropTarget.overId,
-    );
-
-    if (overIndex === -1) return filtered;
-
-    const overRow = filtered[overIndex];
-    const depth =
-      dropTarget.position === "inside" ? (overRow?.depth ?? 0) + 1 : (overRow?.depth ?? 0);
-
-    const insertIndex =
-      dropTarget.position === "before" ? overIndex : Math.min(overIndex + 1, filtered.length);
-
-    const placeholder: Extract<(typeof rows)[number], { kind: "placeholder" }> = {
-      kind: "placeholder",
-      parentId: dropTarget.newParentId,
-      depth,
-      position: dropTarget.position,
-    };
-
-    const nextRows = [...filtered];
-    nextRows.splice(insertIndex, 0, placeholder);
-
-    return nextRows;
-  }, [activeId, dropTarget, rows]);
+  const parentHighlightId =
+    dropTarget && dropTarget.position !== "inside" ? dropTarget.newParentId : null;
 
   const handleDragStart = React.useCallback(
     (event: DragStartEvent) => {
@@ -255,15 +242,19 @@ export function TreeScrollableContent() {
         ref={setRootDropRef}
         className={`space-y-1 transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
       >
-        {rowsWithPlaceholder.map((row) => {
-          const key =
-            row.kind === "node"
-              ? row.id
-              : row.kind === "placeholder"
-                ? `placeholder-${row.parentId ?? "root"}-${row.depth}-${row.position}`
-                : `${row.parentId ?? "root"}-more`;
+        {rows.map((row) => {
+          const key = row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`;
 
-          return <TreeRow key={key} row={row} activeId={activeId} dropTarget={dropTarget} />;
+          return (
+            <TreeRow
+              key={key}
+              row={row}
+              activeId={activeId}
+              dropTarget={dropTarget}
+              parentHighlightId={parentHighlightId}
+              onTitleWidth={setTitleWidth}
+            />
+          );
         })}
       </div>
 
