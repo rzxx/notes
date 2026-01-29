@@ -47,6 +47,11 @@ export function useDeleteNote() {
           ? state.rootIds.indexOf(variables.noteId)
           : (parentMeta?.childrenIds.indexOf(variables.noteId) ?? -1);
 
+      const childrenIds = meta?.childrenIds ?? [];
+      childrenIds.forEach((childId) => {
+        state.moveNode(childId, parentId);
+      });
+
       state.removeNode(variables.noteId);
 
       return node
@@ -56,14 +61,19 @@ export function useDeleteNote() {
               meta,
               parentId,
               index,
+              childrenIds,
             },
           }
         : null;
     },
     onError: (_error, _variables, context) => {
       if (!context?.snapshot) return;
-      const { node, meta, parentId, index } = context.snapshot;
-      useTreeStore.getState().restoreNode({ node, meta, parentId, index });
+      const { node, meta, parentId, index, childrenIds } = context.snapshot;
+      const state = useTreeStore.getState();
+      state.restoreNode({ node, meta, parentId, index });
+      childrenIds?.forEach((childId) => {
+        state.moveNode(childId, node.id);
+      });
     },
     onSuccess: (_data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
