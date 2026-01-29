@@ -77,6 +77,7 @@ export function TreeScrollableContent() {
   const meta = useTreeStore((state) => state.meta);
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
   const moveNote = useMoveNote();
+  const moveNodeWithSnapshot = useTreeStore((state) => state.moveNodeWithSnapshot);
 
   useSyncRouteSelection();
 
@@ -225,12 +226,18 @@ export function TreeScrollableContent() {
 
       if (dropTarget && nextActiveId) {
         const previousParentId = nodes[nextActiveId]?.parentId ?? null;
+        const snapshot = moveNodeWithSnapshot(nextActiveId, dropTarget.newParentId ?? null, {
+          beforeId: dropTarget.beforeId ?? null,
+          afterId: dropTarget.afterId ?? null,
+        });
         moveNote.mutate({
           noteId: nextActiveId,
           newParentId: dropTarget.newParentId ?? null,
           previousParentId,
           beforeId: dropTarget.beforeId ?? null,
           afterId: dropTarget.afterId ?? null,
+          optimistic: false,
+          snapshot: snapshot ?? null,
         });
       }
 
@@ -239,7 +246,7 @@ export function TreeScrollableContent() {
       setCollapsedSnapshot(null);
       dragStartPointerRef.current = null;
     },
-    [collapsedSnapshot, dropTarget, moveNote, nodes, toggleExpanded],
+    [collapsedSnapshot, dropTarget, moveNote, moveNodeWithSnapshot, nodes, toggleExpanded],
   );
 
   const handleDragCancel = React.useCallback(() => {

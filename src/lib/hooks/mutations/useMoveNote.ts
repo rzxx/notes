@@ -11,6 +11,8 @@ type MoveNoteInput = {
   previousParentId: string | null;
   beforeId?: string | null;
   afterId?: string | null;
+  optimistic?: boolean;
+  snapshot?: { oldParentId: string | null; oldIndex: number } | null;
 };
 
 type MoveNoteResponse = {
@@ -45,6 +47,10 @@ export function useMoveNote() {
         queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.previousParentId) }),
         queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.newParentId) }),
       ]);
+
+      if (variables.optimistic === false) {
+        return variables.snapshot ? { snapshot: variables.snapshot } : null;
+      }
 
       const state = useTreeStore.getState();
       const snapshot = state.moveNodeWithSnapshot(variables.noteId, variables.newParentId ?? null, {
