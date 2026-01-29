@@ -1,6 +1,6 @@
 "use client";
 
-import { compareRanks } from "@/lib/lexorank";
+import { compareRanks, rankAfter, rankBetween } from "@/lib/lexorank";
 import { create as produce } from "mutative";
 import { create } from "zustand";
 
@@ -217,26 +217,43 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
           childrenIds,
         };
 
-        childrenIds.forEach((childId) => {
+        const parentList = parentId === null ? draft.rootIds : (parentMeta?.childrenIds ?? []);
+        const nextSiblingId = index >= 0 ? (parentList[index + 1] ?? null) : null;
+        const nextSiblingRank = nextSiblingId ? (draft.nodes[nextSiblingId]?.rank ?? null) : null;
+
+        const orderedChildren = [...childrenIds].sort(compareByRank(draft.nodes));
+        let prevRank = node.rank;
+
+        orderedChildren.forEach((childId, childIndex) => {
           const child = draft.nodes[childId];
           if (!child) return;
 
           const oldParentId = child.parentId ?? null;
           detachFromParent(draft, oldParentId, childId);
 
+          const newRank =
+            childIndex === 0
+              ? node.rank
+              : nextSiblingRank
+                ? rankBetween(prevRank, nextSiblingRank)
+                : rankAfter(prevRank);
+
+          prevRank = newRank;
           child.parentId = parentId;
-          if (parentId === null) {
-            draft.rootIds = mergeSortedIds(draft.rootIds, [childId], draft.nodes);
-          } else {
-            const newMeta = ensureMeta(draft.meta, parentId);
-            newMeta.childrenIds = mergeSortedIds(
-              withoutId(newMeta.childrenIds, childId),
-              [childId],
-              draft.nodes,
-            );
-            newMeta.isExpanded = true;
-          }
+          child.rank = newRank;
         });
+
+        if (parentId === null) {
+          draft.rootIds = mergeSortedIds(draft.rootIds, orderedChildren, draft.nodes);
+        } else {
+          const newMeta = ensureMeta(draft.meta, parentId);
+          newMeta.childrenIds = mergeSortedIds(
+            withoutId(newMeta.childrenIds, id),
+            orderedChildren,
+            draft.nodes,
+          );
+          newMeta.isExpanded = true;
+        }
 
         delete draft.nodes[id];
         delete draft.meta[id];
