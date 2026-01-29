@@ -18,6 +18,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { selectFlatRows, useTreeStore } from "@/lib/stores/tree";
+import { useMoveNote } from "@/lib/hooks/mutations/useMoveNote";
 import { TreeRow } from "@/components/tree-view/TreeRow";
 import { useSyncRouteSelection } from "@/components/tree-view/hooks";
 import { TreeDragOverlayRow } from "@/components/tree-view/TreeDragOverlayRow";
@@ -75,7 +76,7 @@ export function TreeScrollableContent() {
   const nodes = useTreeStore((state) => state.nodes);
   const meta = useTreeStore((state) => state.meta);
   const toggleExpanded = useTreeStore((state) => state.toggleExpanded);
-  const moveNode = useTreeStore((state) => state.moveNode);
+  const moveNote = useMoveNote();
 
   useSyncRouteSelection();
 
@@ -223,9 +224,13 @@ export function TreeScrollableContent() {
       const nextActiveId = String(event.active.id);
 
       if (dropTarget && nextActiveId) {
-        moveNode(nextActiveId, dropTarget.newParentId, {
-          beforeId: dropTarget.beforeId ?? undefined,
-          afterId: dropTarget.afterId ?? undefined,
+        const previousParentId = nodes[nextActiveId]?.parentId ?? null;
+        moveNote.mutate({
+          noteId: nextActiveId,
+          newParentId: dropTarget.newParentId ?? null,
+          previousParentId,
+          beforeId: dropTarget.beforeId ?? null,
+          afterId: dropTarget.afterId ?? null,
         });
       }
 
@@ -234,7 +239,7 @@ export function TreeScrollableContent() {
       setCollapsedSnapshot(null);
       dragStartPointerRef.current = null;
     },
-    [collapsedSnapshot, dropTarget, moveNode, toggleExpanded],
+    [collapsedSnapshot, dropTarget, moveNote, nodes, toggleExpanded],
   );
 
   const handleDragCancel = React.useCallback(() => {
