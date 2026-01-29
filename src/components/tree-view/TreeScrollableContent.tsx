@@ -150,6 +150,47 @@ export function TreeScrollableContent() {
     [activeId, meta, nodes],
   );
 
+  const rowsWithPlaceholder = React.useMemo(() => {
+    if (!activeId || !dropTarget) return rows;
+
+    const filtered = rows.filter((row) => !(row.kind === "node" && row.id === activeId));
+
+    if (dropTarget.overId === ROOT_DROP_ID) {
+      const placeholder: Extract<(typeof rows)[number], { kind: "placeholder" }> = {
+        kind: "placeholder",
+        parentId: null,
+        depth: 0,
+        position: dropTarget.position,
+      };
+      return [...filtered, placeholder];
+    }
+
+    const overIndex = filtered.findIndex(
+      (row) => row.kind === "node" && row.id === dropTarget.overId,
+    );
+
+    if (overIndex === -1) return filtered;
+
+    const overRow = filtered[overIndex];
+    const depth =
+      dropTarget.position === "inside" ? (overRow?.depth ?? 0) + 1 : (overRow?.depth ?? 0);
+
+    const insertIndex =
+      dropTarget.position === "before" ? overIndex : Math.min(overIndex + 1, filtered.length);
+
+    const placeholder: Extract<(typeof rows)[number], { kind: "placeholder" }> = {
+      kind: "placeholder",
+      parentId: dropTarget.newParentId,
+      depth,
+      position: dropTarget.position,
+    };
+
+    const nextRows = [...filtered];
+    nextRows.splice(insertIndex, 0, placeholder);
+
+    return nextRows;
+  }, [activeId, dropTarget, rows]);
+
   const handleDragStart = React.useCallback(
     (event: DragStartEvent) => {
       const nextId = String(event.active.id);
@@ -214,14 +255,16 @@ export function TreeScrollableContent() {
         ref={setRootDropRef}
         className={`space-y-1 transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
       >
-        {rows.map((row) => (
-          <TreeRow
-            key={row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`}
-            row={row}
-            activeId={activeId}
-            dropTarget={dropTarget}
-          />
-        ))}
+        {rowsWithPlaceholder.map((row) => {
+          const key =
+            row.kind === "node"
+              ? row.id
+              : row.kind === "placeholder"
+                ? `placeholder-${row.parentId ?? "root"}-${row.depth}-${row.position}`
+                : `${row.parentId ?? "root"}-more`;
+
+          return <TreeRow key={key} row={row} activeId={activeId} dropTarget={dropTarget} />;
+        })}
       </div>
 
       <DragOverlay>

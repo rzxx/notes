@@ -22,7 +22,7 @@ export function TreeDragOverlayRow({
     >
       <div className="flex flex-col">
         <span className="text-sm font-semibold text-stone-700">{node.title}</span>
-        <span className="text-xs text-stone-400">{node.rank}</span>
+        {/* <span className="text-xs text-stone-400">{node.rank}</span> */}
       </div>
       <div className="ml-auto flex items-center gap-1 text-xs text-stone-500">
         {childCount > 0 ? <span>{childCount}</span> : null}

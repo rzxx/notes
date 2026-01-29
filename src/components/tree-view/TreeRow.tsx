@@ -4,6 +4,7 @@ import type { FlatRow } from "@/lib/stores/tree";
 import { LoadMoreRow } from "@/components/tree-view/LoadMoreRow";
 import { TreeNodeRow } from "@/components/tree-view/TreeNodeRow";
 import type { DropTarget } from "@/components/tree-view/tree-dnd-types";
+import { TreePlaceholderRow } from "@/components/tree-view/TreePlaceholderRow";
 
 export function TreeRow({
   row,
@@ -16,6 +17,9 @@ export function TreeRow({
 }) {
   if (row.kind === "node") {
     return <TreeNodeRow row={row} activeId={activeId} dropTarget={dropTarget} />;
+  }
+  if (row.kind === "placeholder") {
+    return <TreePlaceholderRow row={row} />;
   }
   return <LoadMoreRow row={row} />;
 }
