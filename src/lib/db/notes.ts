@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./drizzle";
 import { blocks, notes, noteClosure } from "./schema";
-import { eq, sql, and, desc, lt, or, isNull, ne, gt, inArray } from "drizzle-orm";
+import { eq, sql, and, desc, lt, or, isNull, ne, gt, inArray, asc } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/errors";
 import { parseCursor } from "@/lib/server/utils";
@@ -437,6 +437,52 @@ export async function rebuildClosure(input: { userId?: string }) {
     return Ok({ rebuilt: true });
   } catch {
     // treat as internal/db failure (log e if you want)
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function rebuildRanks(input: { userId?: string }) {
+  try {
+    await db.transaction(async (tx) => {
+      const userWhere = input.userId ? eq(notes.userId, input.userId) : undefined;
+
+      const parents = await tx
+        .selectDistinct({ parentId: notes.parentId })
+        .from(notes)
+        .where(userWhere ?? sql`true`);
+
+      const parentIdSet = new Set<string | null>(parents.map((p) => p.parentId));
+      parentIdSet.add(null);
+
+      const processParent = async (parentId: string | null) => {
+        const where = parentId
+          ? and(eq(notes.parentId, parentId), userWhere ?? sql`true`)
+          : and(isNull(notes.parentId), userWhere ?? sql`true`);
+
+        const rows = await tx
+          .select({ id: notes.id, rank: notes.rank })
+          .from(notes)
+          .where(where)
+          .orderBy(asc(notes.rank), asc(notes.id));
+
+        let prev: string | null = null;
+        for (const row of rows) {
+          const newRank: string = prev ? rankAfter(prev) : rankInitial();
+          if (newRank !== row.rank) {
+            await tx.update(notes).set({ rank: newRank }).where(eq(notes.id, row.id));
+          }
+          prev = newRank;
+        }
+      };
+
+      // ensure root is processed even if there are no nulls in the distinct list
+      for (const parentId of parentIdSet) {
+        await processParent(parentId);
+      }
+    });
+
+    return Ok({ rebuilt: true });
+  } catch {
     return Err(Errors.DB_ERROR());
   }
 }
