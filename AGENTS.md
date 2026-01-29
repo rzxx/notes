@@ -2,7 +2,7 @@
 
 When you need up-to-date information about technologies used in this project, use btca to query source repositories directly.
 
-**Available resources**: next, react, tailwind, typescript, drizzleOrm, tanstackQuery, zustand, zod
+**Available resources**: next, react, tailwind, typescript, drizzleOrm, tanstackQuery, zustand, zod, base-ui, dnd-kit
 
 ### Usage
 

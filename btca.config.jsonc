@@ -69,6 +69,12 @@
       "branch": "master",
       "searchPath": "docs",
     },
+    {
+      "type": "git",
+      "name": "dnd-kit",
+      "url": "https://github.com/dnd-kit/docs",
+      "branch": "main",
+    },
   ],
   "model": "glm-4.7",
   "provider": "zai-coding-plan",
