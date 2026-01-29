@@ -5,7 +5,6 @@ import { useNotesChildren } from "@/lib/hooks/treeview/useNotesChildren";
 import { useCreateNote } from "@/lib/hooks/mutations/useCreateNote";
 import { useNote } from "@/lib/hooks/editor/useNote";
 import { useRenameNote } from "@/lib/hooks/mutations/useRenameNote";
-import { useMoveNote } from "@/lib/hooks/mutations/useMoveNote";
 import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
 
 export default function Home() {
@@ -14,16 +13,12 @@ export default function Home() {
   const [renameId, setRenameId] = React.useState("");
   const [renameTitle, setRenameTitle] = React.useState("");
   const [renameParentId, setRenameParentId] = React.useState("");
-  const [moveNoteId, setMoveNoteId] = React.useState("");
-  const [moveFromId, setMoveFromId] = React.useState("");
-  const [moveToId, setMoveToId] = React.useState("");
   const [deleteId, setDeleteId] = React.useState("");
   const [deleteParentId, setDeleteParentId] = React.useState("");
   const notesQuery = useNotesChildren(null);
   const createNote = useCreateNote();
   const noteQuery = useNote(noteId.trim() ? noteId.trim() : null);
   const renameNote = useRenameNote();
-  const moveNote = useMoveNote();
   const deleteNote = useDeleteNote();
 
   const handleCreate = () => {
@@ -37,13 +32,6 @@ export default function Home() {
     const parentId = renameParentId.trim() ? renameParentId.trim() : null;
     renameNote.mutate({ noteId: renameId.trim(), title: renameTitle.trim(), parentId });
     setRenameTitle("");
-  };
-
-  const handleMove = () => {
-    if (!moveNoteId.trim()) return;
-    const previousParentId = moveFromId.trim() ? moveFromId.trim() : null;
-    const newParentId = moveToId.trim() ? moveToId.trim() : null;
-    moveNote.mutate({ noteId: moveNoteId.trim(), previousParentId, newParentId });
   };
 
   const handleDelete = () => {
@@ -160,39 +148,6 @@ export default function Home() {
         {renameNote.error ? (
           <p className="mt-2 text-sm text-red-600">Failed to rename note.</p>
         ) : null}
-      </section>
-
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="text-sm font-semibold tracking-wide text-zinc-500 uppercase">Move note</h2>
-        <div className="mt-3 grid gap-3">
-          <input
-            className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Note id"
-            value={moveNoteId}
-            onChange={(event) => setMoveNoteId(event.target.value)}
-          />
-          <input
-            className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="Previous parent id (blank = root)"
-            value={moveFromId}
-            onChange={(event) => setMoveFromId(event.target.value)}
-          />
-          <input
-            className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm"
-            placeholder="New parent id (blank = root)"
-            value={moveToId}
-            onChange={(event) => setMoveToId(event.target.value)}
-          />
-        </div>
-        <button
-          className="mt-3 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
-          onClick={handleMove}
-          disabled={moveNote.isPending}
-          type="button"
-        >
-          {moveNote.isPending ? "Moving..." : "Move"}
-        </button>
-        {moveNote.error ? <p className="mt-2 text-sm text-red-600">Failed to move note.</p> : null}
       </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">

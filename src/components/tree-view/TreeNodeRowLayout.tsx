@@ -80,7 +80,9 @@ export function TreeNodeRowLayout({
             ) : null} */}
           </div>
           {/* Can unhide IDs for debug purposes */}
-          {/* <div className="line-clamp-1 text-xs text-stone-400">{node.id}</div> */}
+          <div className="line-clamp-1 text-xs text-stone-400">{node.id}</div>
+          {/* Can unhide ranks for debug purposes */}
+          <div className="line-clamp-1 text-xs text-stone-400">{node.rank}</div>
         </div>
       </Link>
 

@@ -11,6 +11,8 @@ export async function PUT(request: Request) {
       userId: process.env.STUB_USER_ID!,
       noteId: data.noteId,
       newParentId: data.newParentId,
+      beforeId: data.beforeId ?? null,
+      afterId: data.afterId ?? null,
     }),
   );
 

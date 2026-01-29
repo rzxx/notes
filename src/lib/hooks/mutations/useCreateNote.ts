@@ -12,7 +12,7 @@ type CreateNoteInput = {
 
 type CreateNoteResponse = {
   ok: true;
-  note: { id: string; createdAt: string };
+  note: { id: string; createdAt: string; rank: string };
 };
 
 async function createNote(input: CreateNoteInput) {
@@ -56,6 +56,7 @@ export function useCreateNote() {
             parentId: variables.parentId,
             title: variables.title,
             hasChildren: false,
+            rank: "",
             createdAt,
           },
         ],
@@ -91,6 +92,7 @@ export function useCreateNote() {
             parentId: variables.parentId,
             title: variables.title,
             hasChildren: false,
+            rank: data.note.rank,
             createdAt: data.note.createdAt ?? context?.createdAt ?? new Date().toISOString(),
           },
         ],

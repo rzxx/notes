@@ -14,6 +14,7 @@ type NotesPage = {
     id: string;
     parentId: string | null;
     title: string;
+    rank: string;
     createdAt: string;
     hasChildren: boolean;
   }[];

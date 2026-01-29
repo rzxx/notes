@@ -10,6 +10,7 @@ Schema + migration
 
 - Add `rank text not null` to `notes`; unique per `(user_id, parent_id, rank)`; index by `(user_id, parent_id, rank, id)` for ordered lookups.
 - Migration seeds ranks from current ordering (created_at desc, id desc → assign descending ranks like `hzz...`).
+- Use drizzle-kit to generate the migration, but add a custom backfill step before the NOT NULL/unique to fan out unique ranks per parent.
 - Store a small helper for initial rank constants if needed (could live in db util later).
 
 Create note behavior
@@ -19,7 +20,7 @@ Create note behavior
 
 Move behavior
 
-- Signature: `{ userId, noteId, newParentId, beforeId?, afterId? }`; only one of before/after allowed; siblings must share parent after move.
+- Signature: `{ userId, noteId, newParentId, beforeId?, afterId? }`; anchors must be within the target parent (one or both allowed to bound the slot).
 - Validate existence, same user, cycle prevention when reparenting; ensure anchors belong to target parent.
 - Compute target rank using surrounding ranks: between(prevRank, nextRank); handle edge cases (only before → use before’s prev; only after → use after’s next; neither → append to end).
 - Update `notes.parent_id` and `notes.rank`, then rebuild closure rows for the moved subtree as today.

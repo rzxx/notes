@@ -7,10 +7,17 @@ export const createNoteSchema = z.object({
   title: noteTitleSchema,
 });
 
-export const moveNoteSchema = z.object({
-  noteId: z.uuid(),
-  newParentId: z.uuid().nullable(),
-});
+export const moveNoteSchema = z
+  .object({
+    noteId: z.uuid(),
+    newParentId: z.uuid().nullable(),
+    beforeId: z.uuid().nullable().optional(),
+    afterId: z.uuid().nullable().optional(),
+  })
+  .refine((data) => !(data.beforeId && data.afterId && data.beforeId === data.afterId), {
+    path: ["beforeId", "afterId"],
+    message: "beforeId and afterId cannot be identical",
+  });
 
 export const deleteNoteSchema = z.object({
   noteId: z.uuid(),

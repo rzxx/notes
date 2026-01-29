@@ -9,11 +9,14 @@ type MoveNoteInput = {
   noteId: string;
   newParentId: string | null;
   previousParentId: string | null;
+  beforeId?: string | null;
+  afterId?: string | null;
 };
 
 type MoveNoteResponse = {
   ok: true;
   moved: boolean;
+  rank?: string;
 };
 
 async function moveNote(input: MoveNoteInput) {
@@ -23,6 +26,8 @@ async function moveNote(input: MoveNoteInput) {
     body: JSON.stringify({
       noteId: input.noteId,
       newParentId: input.newParentId,
+      beforeId: input.beforeId ?? null,
+      afterId: input.afterId ?? null,
     }),
   });
 
@@ -42,7 +47,10 @@ export function useMoveNote() {
       ]);
 
       const state = useTreeStore.getState();
-      const snapshot = state.moveNodeWithSnapshot(variables.noteId, variables.newParentId ?? null);
+      const snapshot = state.moveNodeWithSnapshot(variables.noteId, variables.newParentId ?? null, {
+        beforeId: variables.beforeId ?? null,
+        afterId: variables.afterId ?? null,
+      });
 
       return snapshot ? { snapshot } : null;
     },

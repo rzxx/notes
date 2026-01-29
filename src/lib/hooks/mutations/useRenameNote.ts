@@ -50,6 +50,7 @@ export function useRenameNote() {
             parentId,
             title: variables.title,
             hasChildren: false,
+            rank: "",
             createdAt: new Date().toISOString(),
           };
 

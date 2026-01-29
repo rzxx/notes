@@ -7,6 +7,7 @@ type Note = {
   id: string;
   parentId: string | null;
   title: string;
+  rank: string;
   hasChildren: boolean;
   createdAt: string;
 };
@@ -46,11 +47,16 @@ type TreeActions = {
   moveNodeWithSnapshot: (
     id: string,
     newParentId: string | null,
+    options?: { beforeId?: string | null; afterId?: string | null },
   ) => {
     oldParentId: string | null;
     oldIndex: number;
   } | null;
-  moveNode: (id: string, newParentId: string | null, index?: number) => void;
+  moveNode: (
+    id: string,
+    newParentId: string | null,
+    options?: { beforeId?: string | null; afterId?: string | null },
+  ) => void;
   restoreNode: (input: {
     node: Note;
     meta?: NodeMeta;
@@ -68,21 +74,16 @@ const ensureMeta = (meta: Record<string, NodeMeta>, id: string) => {
   return meta[id];
 };
 
-const createdAtOrFallback = (node?: Note) => {
-  const timestamp = node ? Date.parse(node.createdAt) : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
-};
-
-const compareByCreatedAtDesc = (nodes: Record<string, Note>) => (a: string, b: string) => {
-  const aTime = createdAtOrFallback(nodes[a]);
-  const bTime = createdAtOrFallback(nodes[b]);
-  if (aTime !== bTime) return bTime - aTime;
+const compareByRank = (nodes: Record<string, Note>) => (a: string, b: string) => {
+  const aRank = nodes[a]?.rank ?? "";
+  const bRank = nodes[b]?.rank ?? "";
+  if (aRank !== bRank) return aRank.localeCompare(bRank);
   return a.localeCompare(b);
 };
 
 const mergeSortedIds = (existing: string[], incoming: string[], nodes: Record<string, Note>) => {
   const merged = Array.from(new Set([...existing, ...incoming]));
-  merged.sort(compareByCreatedAtDesc(nodes));
+  merged.sort(compareByRank(nodes));
   return merged;
 };
 
@@ -255,7 +256,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
     return snapshot;
   },
 
-  moveNodeWithSnapshot: (id, newParentId) => {
+  moveNodeWithSnapshot: (id, newParentId, options) => {
     let snapshot: { oldParentId: string | null; oldIndex: number } | null = null;
 
     set((state) =>
@@ -280,6 +281,28 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
           return;
         }
 
+        const insert = (list: string[]) => {
+          const filtered = withoutId(list, id);
+          if (options?.beforeId) {
+            const idx = filtered.indexOf(options.beforeId);
+            if (idx >= 0) {
+              filtered.splice(idx, 0, id);
+              return filtered;
+            }
+          }
+
+          if (options?.afterId) {
+            const idx = filtered.indexOf(options.afterId);
+            if (idx >= 0) {
+              filtered.splice(idx + 1, 0, id);
+              return filtered;
+            }
+          }
+
+          filtered.push(id);
+          return filtered;
+        };
+
         if (oldParentId === null) {
           draft.rootIds = withoutId(draft.rootIds, id);
         } else {
@@ -288,14 +311,10 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
         }
 
         if (newParentId === null) {
-          draft.rootIds = mergeSortedIds(draft.rootIds, [id], draft.nodes);
+          draft.rootIds = insert(draft.rootIds);
         } else {
           const newMeta = ensureMeta(draft.meta, newParentId);
-          newMeta.childrenIds = mergeSortedIds(
-            withoutId(newMeta.childrenIds, id),
-            [id],
-            draft.nodes,
-          );
+          newMeta.childrenIds = insert(newMeta.childrenIds);
           newMeta.isExpanded = true;
         }
 
@@ -306,7 +325,7 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
     return snapshot;
   },
 
-  moveNode: (id, newParentId) =>
+  moveNode: (id, newParentId, options) =>
     set((state) =>
       produce(state, (draft) => {
         const node = draft.nodes[id];
@@ -322,6 +341,28 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
           return;
         }
 
+        const insert = (list: string[]) => {
+          const filtered = withoutId(list, id);
+          if (options?.beforeId) {
+            const idx = filtered.indexOf(options.beforeId);
+            if (idx >= 0) {
+              filtered.splice(idx, 0, id);
+              return filtered;
+            }
+          }
+
+          if (options?.afterId) {
+            const idx = filtered.indexOf(options.afterId);
+            if (idx >= 0) {
+              filtered.splice(idx + 1, 0, id);
+              return filtered;
+            }
+          }
+
+          filtered.push(id);
+          return filtered;
+        };
+
         if (oldParentId === null) {
           draft.rootIds = withoutId(draft.rootIds, id);
         } else {
@@ -330,14 +371,10 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
         }
 
         if (newParentId === null) {
-          draft.rootIds = mergeSortedIds(draft.rootIds, [id], draft.nodes);
+          draft.rootIds = insert(draft.rootIds);
         } else {
           const newMeta = ensureMeta(draft.meta, newParentId);
-          newMeta.childrenIds = mergeSortedIds(
-            withoutId(newMeta.childrenIds, id),
-            [id],
-            draft.nodes,
-          );
+          newMeta.childrenIds = insert(newMeta.childrenIds);
           newMeta.isExpanded = true;
         }
 

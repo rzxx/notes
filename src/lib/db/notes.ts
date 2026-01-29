@@ -1,10 +1,11 @@
 import "server-only";
 import { db } from "./drizzle";
 import { blocks, notes, noteClosure } from "./schema";
-import { eq, sql, and, desc, lt, or, isNull } from "drizzle-orm";
+import { eq, sql, and, desc, lt, or, isNull, ne, gt, inArray } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/errors";
 import { parseCursor } from "@/lib/server/utils";
+import { rankAfter, rankBetween, rankInitial } from "@/lib/lexorank";
 
 export async function createNote(input: {
   userId: string;
@@ -26,14 +27,29 @@ export async function createNote(input: {
       }
 
       // 1) insert note
+      const lastSibling = await tx
+        .select({ rank: notes.rank })
+        .from(notes)
+        .where(
+          and(
+            eq(notes.userId, input.userId),
+            input.parentId ? eq(notes.parentId, input.parentId) : isNull(notes.parentId),
+          ),
+        )
+        .orderBy(desc(notes.rank), desc(notes.id))
+        .limit(1);
+
+      const rank = lastSibling[0] ? rankAfter(lastSibling[0].rank) : rankInitial();
+
       const insertedNote = await tx
         .insert(notes)
         .values({
           userId: input.userId,
           parentId: input.parentId ?? null,
           title: input.title,
+          rank,
         })
-        .returning({ id: notes.id, createdAt: notes.createdAt });
+        .returning({ id: notes.id, createdAt: notes.createdAt, rank: notes.rank });
 
       // sanity check
       if (!insertedNote[0]) throw Errors.DB_ERROR();
@@ -70,7 +86,7 @@ export async function createNote(input: {
       return insertedNote[0];
     });
 
-    return Ok({ id: result.id, createdAt: result.createdAt });
+    return Ok({ id: result.id, createdAt: result.createdAt, rank: result.rank });
   } catch (e) {
     // If we threw our own AppError, preserve it
     if (isAppError(e) && e.code !== "DB_ERROR") {
@@ -150,30 +166,43 @@ export async function moveNote(input: {
   userId: string;
   noteId: string;
   newParentId: string | null;
+  beforeId?: string | null;
+  afterId?: string | null;
 }) {
   try {
     const result = await db.transaction(async (tx) => {
       const existingNote = await tx
-        .select({ parentId: notes.parentId })
+        .select({ parentId: notes.parentId, rank: notes.rank })
         .from(notes)
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-      if (!existingNote[0]) {
+      const current = existingNote[0];
+      if (!current) {
         throw Errors.NOTE_NOT_FOUND(input.noteId);
       }
 
-      if (existingNote[0].parentId === input.newParentId) {
-        return { moved: false };
+      const targetParentId = input.newParentId ?? null;
+      const beforeId = input.beforeId ?? null;
+      const afterId = input.afterId ?? null;
+
+      if (beforeId && afterId && beforeId === afterId) {
+        throw Errors.VALIDATION_ERROR([
+          {
+            code: "custom",
+            message: "beforeId and afterId cannot be the same",
+            path: ["beforeId", "afterId"],
+          },
+        ]);
       }
 
-      if (input.newParentId) {
+      if (targetParentId) {
         const parentExists = await tx
           .select({ id: notes.id })
           .from(notes)
-          .where(and(eq(notes.userId, input.userId), eq(notes.id, input.newParentId)));
+          .where(and(eq(notes.userId, input.userId), eq(notes.id, targetParentId)));
 
         if (!parentExists[0]) {
-          throw Errors.NOTE_NOT_FOUND(input.newParentId);
+          throw Errors.NOTE_NOT_FOUND(targetParentId);
         }
 
         const cycleCheck = await tx
@@ -183,7 +212,7 @@ export async function moveNote(input: {
             and(
               eq(noteClosure.userId, input.userId),
               eq(noteClosure.ancestorId, input.noteId),
-              eq(noteClosure.descendantId, input.newParentId),
+              eq(noteClosure.descendantId, targetParentId),
             ),
           );
 
@@ -192,47 +221,168 @@ export async function moveNote(input: {
         }
       }
 
-      await tx
-        .update(notes)
-        .set({ parentId: input.newParentId })
-        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+      const targetParentClause = targetParentId
+        ? eq(notes.parentId, targetParentId)
+        : isNull(notes.parentId);
 
-      await tx.execute(sql`
-        DELETE FROM note_closure
-        WHERE user_id = ${input.userId}
-          AND descendant_id IN (
-            SELECT descendant_id
-            FROM note_closure
-            WHERE user_id = ${input.userId}
-              AND ancestor_id = ${input.noteId}
-          )
-          AND ancestor_id IN (
-            SELECT ancestor_id
-            FROM note_closure
-            WHERE user_id = ${input.userId}
-              AND descendant_id = ${input.noteId}
-              AND ancestor_id <> ${input.noteId}
-          )
-      `);
+      const anchorIds = [beforeId, afterId].filter(Boolean) as string[];
+      const anchors = anchorIds.length
+        ? await tx
+            .select({ id: notes.id, parentId: notes.parentId, rank: notes.rank })
+            .from(notes)
+            .where(and(eq(notes.userId, input.userId), inArray(notes.id, anchorIds)))
+        : [];
 
-      if (input.newParentId) {
-        await tx.execute(sql`
-          INSERT INTO note_closure (user_id, ancestor_id, descendant_id, depth)
-          SELECT
-            a.user_id,
-            a.ancestor_id,
-            d.descendant_id,
-            a.depth + d.depth + 1
-          FROM note_closure a
-          CROSS JOIN note_closure d
-          WHERE a.user_id = ${input.userId}
-            AND d.user_id = ${input.userId}
-            AND a.descendant_id = ${input.newParentId}
-            AND d.ancestor_id = ${input.noteId}
-        `);
+      const findAnchor = (id: string | null) => anchors.find((row) => row.id === id);
+
+      const before = beforeId ? findAnchor(beforeId) : undefined;
+      const after = afterId ? findAnchor(afterId) : undefined;
+
+      if (targetParentId === current.parentId && !before && !after) {
+        return { moved: false };
       }
 
-      return { moved: true };
+      if (beforeId && !before) throw Errors.NOTE_NOT_FOUND(beforeId);
+      if (afterId && !after) throw Errors.NOTE_NOT_FOUND(afterId);
+
+      if (before && before.parentId !== targetParentId) {
+        throw Errors.VALIDATION_ERROR([
+          { code: "custom", message: "beforeId parent mismatch", path: ["beforeId"] },
+        ]);
+      }
+
+      if (after && after.parentId !== targetParentId) {
+        throw Errors.VALIDATION_ERROR([
+          { code: "custom", message: "afterId parent mismatch", path: ["afterId"] },
+        ]);
+      }
+
+      const prevSibling = async (anchorRank: string, anchorId: string | null) => {
+        const rows = await tx
+          .select({ id: notes.id, rank: notes.rank })
+          .from(notes)
+          .where(
+            and(
+              eq(notes.userId, input.userId),
+              targetParentClause,
+              ne(notes.id, input.noteId),
+              or(
+                lt(notes.rank, anchorRank),
+                and(eq(notes.rank, anchorRank), anchorId ? lt(notes.id, anchorId) : sql`false`),
+              ),
+            ),
+          )
+          .orderBy(desc(notes.rank), desc(notes.id))
+          .limit(1);
+
+        return rows[0];
+      };
+
+      const nextSibling = async (anchorRank: string, anchorId: string | null) => {
+        const rows = await tx
+          .select({ id: notes.id, rank: notes.rank })
+          .from(notes)
+          .where(
+            and(
+              eq(notes.userId, input.userId),
+              targetParentClause,
+              ne(notes.id, input.noteId),
+              or(
+                gt(notes.rank, anchorRank),
+                and(eq(notes.rank, anchorRank), anchorId ? lt(notes.id, anchorId) : sql`false`),
+              ),
+            ),
+          )
+          .orderBy(notes.rank, notes.id)
+          .limit(1);
+
+        return rows[0];
+      };
+
+      let lowerRank: string | null = null;
+      let upperRank: string | null = null;
+
+      if (before) {
+        upperRank = before.rank;
+        const prev = await prevSibling(before.rank, before.id);
+        lowerRank = prev?.rank ?? null;
+      }
+
+      if (after) {
+        lowerRank = after.rank;
+        if (!upperRank) {
+          const next = await nextSibling(after.rank, after.id);
+          upperRank = next?.rank ?? null;
+        }
+      }
+
+      if (!before && !after) {
+        const last = await tx
+          .select({ rank: notes.rank })
+          .from(notes)
+          .where(
+            and(eq(notes.userId, input.userId), targetParentClause, ne(notes.id, input.noteId)),
+          )
+          .orderBy(desc(notes.rank), desc(notes.id))
+          .limit(1);
+        lowerRank = last[0]?.rank ?? null;
+      }
+
+      if (lowerRank && upperRank && lowerRank >= upperRank) {
+        throw Errors.VALIDATION_ERROR([
+          { code: "custom", message: "Invalid anchor ordering", path: ["beforeId", "afterId"] },
+        ]);
+      }
+
+      const newRank = rankBetween(lowerRank, upperRank);
+
+      if (current.parentId === targetParentId && current.rank === newRank) {
+        return { moved: false };
+      }
+
+      await tx
+        .update(notes)
+        .set({ parentId: targetParentId, rank: newRank, updatedAt: new Date() })
+        .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+      if (current.parentId !== targetParentId) {
+        await tx.execute(sql`
+          DELETE FROM note_closure
+          WHERE user_id = ${input.userId}
+            AND descendant_id IN (
+              SELECT descendant_id
+              FROM note_closure
+              WHERE user_id = ${input.userId}
+                AND ancestor_id = ${input.noteId}
+            )
+            AND ancestor_id IN (
+              SELECT ancestor_id
+              FROM note_closure
+              WHERE user_id = ${input.userId}
+                AND descendant_id = ${input.noteId}
+                AND ancestor_id <> ${input.noteId}
+            )
+        `);
+
+        if (targetParentId) {
+          await tx.execute(sql`
+            INSERT INTO note_closure (user_id, ancestor_id, descendant_id, depth)
+            SELECT
+              a.user_id,
+              a.ancestor_id,
+              d.descendant_id,
+              a.depth + d.depth + 1
+            FROM note_closure a
+            CROSS JOIN note_closure d
+            WHERE a.user_id = ${input.userId}
+              AND d.user_id = ${input.userId}
+              AND a.descendant_id = ${targetParentId}
+              AND d.ancestor_id = ${input.noteId}
+          `);
+        }
+      }
+
+      return { moved: true, rank: newRank };
     });
 
     return Ok(result);
@@ -307,8 +457,8 @@ export async function getNotesList(input: {
       : isNull(notes.parentId);
     const cursorClause = parsedCursor
       ? or(
-          lt(notes.createdAt, parsedCursor.createdAt),
-          and(eq(notes.createdAt, parsedCursor.createdAt), lt(notes.id, parsedCursor.id)),
+          gt(notes.rank, parsedCursor.rank),
+          and(eq(notes.rank, parsedCursor.rank), gt(notes.id, parsedCursor.id)),
         )
       : undefined;
 
@@ -317,6 +467,7 @@ export async function getNotesList(input: {
         id: notes.id,
         parentId: notes.parentId,
         title: notes.title,
+        rank: notes.rank,
         createdAt: notes.createdAt,
         hasChildren: sql<boolean>`exists (
           select 1
@@ -330,13 +481,13 @@ export async function getNotesList(input: {
       .where(
         and(eq(notes.userId, input.userId), parentClause, ...(cursorClause ? [cursorClause] : [])),
       )
-      .orderBy(desc(notes.createdAt), desc(notes.id))
+      .orderBy(notes.rank, notes.id)
       .limit(input.limit + 1);
 
     const hasMore = rows.length > input.limit;
     const notesList = hasMore ? rows.slice(0, input.limit) : rows;
     const last = hasMore ? notesList[notesList.length - 1] : null;
-    const nextCursor = last ? `${last.createdAt.getTime()}|${last.id}` : null;
+    const nextCursor = last ? `${last.rank}|${last.id}` : null;
 
     return Ok({ notes: notesList, nextCursor });
   } catch (e) {

@@ -23,6 +23,8 @@ export const notes = pgTable(
 
     title: text("title").notNull(),
 
+    rank: text("rank").notNull(),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -33,8 +35,11 @@ export const notes = pgTable(
       .on(t.userId, t.title)
       .where(sql`${t.parentId} is null`),
 
+    uniqueIndex("notes_uniq_user_parent_rank").on(t.userId, t.parentId, t.rank),
+
     index("notes_idx_user").on(t.userId),
     index("notes_idx_user_parent_created_id").on(t.userId, t.parentId, t.createdAt, t.id),
+    index("notes_idx_user_parent_rank_id").on(t.userId, t.parentId, t.rank, t.id),
   ],
 );
 
