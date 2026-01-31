@@ -54,7 +54,7 @@ export function TreeNodeRowActions({
               </div>
 
               {/* Debug Info (optional) */}
-              {!showDebugInfo && (
+              {showDebugInfo && (
                 <div className="mb-2 border-b border-stone-200 pb-2">
                   <div className="px-2 py-1 text-xs text-stone-400">
                     <div>ID: {node.id}</div>
@@ -79,8 +79,8 @@ export function TreeNodeRowActions({
       {/* Delete Confirmation Dialog */}
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Portal>
-          <Dialog.Backdrop className="fixed inset-0 bg-black/30 transition-opacity data-closed:opacity-0 data-open:opacity-100" />
-          <Dialog.Popup className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-stone-200 bg-stone-50 p-6 shadow-xl transition-all data-closed:scale-95 data-closed:opacity-0 data-open:scale-100 data-open:opacity-100">
+          <Dialog.Backdrop className="starting-or-ending:opacity-0 fixed inset-0 bg-black/25 opacity-100 backdrop-blur-xs transition-opacity duration-150 ease-in-out" />
+          <Dialog.Popup className="starting-or-ending:opacity-0 starting-or-ending:scale-75 starting-or-ending:-translate-y-1/3 fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 scale-100 rounded-lg border border-stone-200 bg-stone-50 p-6 opacity-100 shadow-xl transition-[scale,opacity,translate] duration-150 ease-out">
             <Dialog.Title className="mb-2 text-lg font-semibold text-stone-800">
               Delete Note?
             </Dialog.Title>
@@ -89,12 +89,12 @@ export function TreeNodeRowActions({
               undone.
             </Dialog.Description>
             <div className="flex justify-end gap-2">
-              <Dialog.Close className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50">
+              <Dialog.Close className="cursor-pointer rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50">
                 Cancel
               </Dialog.Close>
               <button
                 onClick={handleConfirmDelete}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                className="cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
               >
                 Delete
               </button>
