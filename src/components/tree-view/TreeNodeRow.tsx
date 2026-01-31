@@ -22,11 +22,15 @@ export function TreeNodeRow({
   activeId,
   dropTarget,
   parentHighlightId,
+  onRowClickCapture,
+  isAnyDragging,
 }: {
   row: Extract<FlatRow, { kind: "node" }>;
   activeId: string | null;
   dropTarget: DropTarget | null;
   parentHighlightId: string | null;
+  onRowClickCapture?: (event: React.MouseEvent) => void;
+  isAnyDragging?: boolean;
 }) {
   const node = useTreeStore((state) => state.nodes[row.id]);
   const meta = useTreeStore((state) => state.meta[row.id]);
@@ -34,6 +38,10 @@ export function TreeNodeRow({
   const selectedId = useTreeStore((state) => state.selectedId);
   const select = useTreeStore((state) => state.select);
   const deleteNote = useDeleteNote();
+  const childCount = meta?.childrenIds.length ?? 0;
+  const firstChildId = meta?.childrenIds[0] ?? null;
+  const isExpanded = meta?.isExpanded ?? false;
+  const hasChildren = Boolean(childCount > 0 || meta?.hasMore || node?.hasChildren);
 
   const {
     attributes,
@@ -52,6 +60,9 @@ export function TreeNodeRow({
       depth: row.depth,
       titleWidth: getApproxTitleWidth(node?.title ?? ""),
       parentId: node?.parentId ?? null,
+      isExpanded,
+      hasChildren,
+      firstChildId,
     },
   });
 
@@ -70,7 +81,6 @@ export function TreeNodeRow({
 
   if (!node) return null;
 
-  const childCount = meta?.childrenIds.length ?? 0;
   const canExpand = Boolean(node.hasChildren || meta?.hasMore || childCount > 0);
   const isSelected = selectedId === row.id;
   const handleSelect = () => select(row.id);
@@ -80,7 +90,12 @@ export function TreeNodeRow({
   const isParentDropTarget = parentHighlightId === row.id;
 
   const actionsSlot = (
-    <TreeNodeRowActions node={node} onDelete={handleDelete} showDebugInfo={false} />
+    <TreeNodeRowActions
+      node={node}
+      onDelete={handleDelete}
+      isDragging={isActiveRow || isDragging}
+      showDebugInfo={false}
+    />
   );
 
   if (!canExpand) {
@@ -105,6 +120,8 @@ export function TreeNodeRow({
         dragAttributes={attributes}
         dragListeners={listeners}
         setRowRef={setRowRef}
+        onRowClickCapture={onRowClickCapture}
+        disableLinkPointerEvents={isAnyDragging}
       />
     );
   }
@@ -125,6 +142,8 @@ export function TreeNodeRow({
       dragAttributes={attributes}
       dragListeners={listeners}
       setRowRef={setRowRef}
+      onRowClickCapture={onRowClickCapture}
+      disableLinkPointerEvents={isAnyDragging}
     />
   );
 }
@@ -144,6 +163,8 @@ function ExpandableTreeNodeRow({
   dragAttributes,
   dragListeners,
   setRowRef,
+  onRowClickCapture,
+  disableLinkPointerEvents,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -159,6 +180,8 @@ function ExpandableTreeNodeRow({
   dragAttributes: ReturnType<typeof useDraggable>["attributes"];
   dragListeners: ReturnType<typeof useDraggable>["listeners"];
   setRowRef: (element: HTMLDivElement | null) => void;
+  onRowClickCapture?: (event: React.MouseEvent) => void;
+  disableLinkPointerEvents?: boolean;
 }) {
   const expandable = useExpandableRow({
     rowId: row.id,
@@ -189,6 +212,8 @@ function ExpandableTreeNodeRow({
       dragAttributes={dragAttributes}
       dragListeners={dragListeners}
       setRowRef={setRowRef}
+      onRowClickCapture={onRowClickCapture}
+      disableLinkPointerEvents={disableLinkPointerEvents}
     />
   );
 }

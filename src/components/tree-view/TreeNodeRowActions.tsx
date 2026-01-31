@@ -15,13 +15,22 @@ function formatDate(dateString: string): string {
 export function TreeNodeRowActions({
   node,
   onDelete,
+  isDragging = false,
   showDebugInfo = false,
 }: {
   node: Note;
   onDelete: () => void;
+  isDragging?: boolean;
   showDebugInfo?: boolean;
 }) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const menuActionsRef = React.useRef<Menu.Root.Actions | null>(null);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      menuActionsRef.current?.close();
+    }
+  }, [isDragging]);
 
   const handleDeleteClick = () => {
     setDialogOpen(true);
@@ -34,7 +43,7 @@ export function TreeNodeRowActions({
 
   return (
     <>
-      <Menu.Root>
+      <Menu.Root actionsRef={menuActionsRef}>
         <Menu.Trigger className="absolute right-0 mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:cursor-pointer">
           <Ellipsis size={24} strokeWidth={1.5} className="text-stone-500" />
         </Menu.Trigger>

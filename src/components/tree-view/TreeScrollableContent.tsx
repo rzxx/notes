@@ -88,6 +88,7 @@ export function TreeScrollableContent() {
     wasExpanded: boolean;
   } | null>(null);
   const dragStartPointerRef = React.useRef<{ x: number; y: number } | null>(null);
+  const didDragRef = React.useRef(false);
 
   const { setNodeRef: setRootDropRef } = useDroppable({ id: ROOT_DROP_ID });
 
@@ -153,10 +154,58 @@ export function TreeScrollableContent() {
       }
 
       const overData = event.over.data.current as
-        | { kind?: string; depth?: number; titleWidth?: number; parentId?: string | null }
+        | {
+            kind?: "node";
+            depth?: number;
+            titleWidth?: number;
+            parentId?: string | null;
+            isExpanded?: boolean;
+            hasChildren?: boolean;
+            firstChildId?: string | null;
+          }
+        | {
+            kind?: "after";
+            nodeId?: string;
+            parentId?: string | null;
+            depth?: number;
+          }
         | undefined;
 
-      if (!overData || overData.kind !== "node") {
+      if (!overData) {
+        setDropTarget((prev) => (prev ? null : prev));
+        return;
+      }
+
+      if (overData.kind === "after") {
+        const targetNodeId = overData.nodeId ?? null;
+        const newParentId = overData.parentId ?? null;
+        if (!targetNodeId || targetNodeId === activeId) {
+          setDropTarget((prev) => (prev ? null : prev));
+          return;
+        }
+
+        if (newParentId === activeId) {
+          setDropTarget((prev) => (prev ? null : prev));
+          return;
+        }
+
+        if (isDescendant(activeId, newParentId, meta)) {
+          setDropTarget((prev) => (prev ? null : prev));
+          return;
+        }
+
+        const nextTarget = {
+          overId,
+          position: "after" as const,
+          newParentId,
+          beforeId: null,
+          afterId: targetNodeId,
+        };
+        setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
+        return;
+      }
+
+      if (overData.kind !== "node") {
         setDropTarget((prev) => (prev ? null : prev));
         return;
       }
@@ -175,9 +224,16 @@ export function TreeScrollableContent() {
         return;
       }
 
-      const newParentId = position === "inside" ? overId : (overData.parentId ?? null);
-      const beforeId = position === "before" ? overId : null;
-      const afterId = position === "after" ? overId : null;
+      let nextPosition = position;
+      let forcedBeforeId: string | null = null;
+      if (position === "after" && overData.isExpanded && overData.hasChildren) {
+        nextPosition = "inside";
+        forcedBeforeId = overData.firstChildId ?? null;
+      }
+
+      const newParentId = nextPosition === "inside" ? overId : (overData.parentId ?? null);
+      const beforeId = nextPosition === "before" ? overId : forcedBeforeId;
+      const afterId = nextPosition === "after" ? overId : null;
 
       if (newParentId === activeId) {
         setDropTarget((prev) => (prev ? null : prev));
@@ -189,7 +245,7 @@ export function TreeScrollableContent() {
         return;
       }
 
-      const nextTarget = { overId, position, newParentId, beforeId, afterId };
+      const nextTarget = { overId, position: nextPosition, newParentId, beforeId, afterId };
       setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
     },
     [activeId, isSameDropTarget, meta],
@@ -203,6 +259,7 @@ export function TreeScrollableContent() {
       const nextId = String(event.active.id);
       setActiveId(nextId);
       setDropTarget(null);
+      didDragRef.current = true;
       dragStartPointerRef.current = getPointerFromEvent(event.activatorEvent);
 
       const wasExpanded = meta[nextId]?.isExpanded ?? false;
@@ -245,6 +302,9 @@ export function TreeScrollableContent() {
       setDropTarget(null);
       setCollapsedSnapshot(null);
       dragStartPointerRef.current = null;
+      window.setTimeout(() => {
+        didDragRef.current = false;
+      }, 0);
     },
     [collapsedSnapshot, dropTarget, moveNote, moveNodeWithSnapshot, nodes, toggleExpanded],
   );
@@ -257,7 +317,17 @@ export function TreeScrollableContent() {
     setDropTarget(null);
     setCollapsedSnapshot(null);
     dragStartPointerRef.current = null;
+    window.setTimeout(() => {
+      didDragRef.current = false;
+    }, 0);
   }, [collapsedSnapshot, toggleExpanded]);
+
+  const handleRowClickCapture = React.useCallback((event: React.MouseEvent) => {
+    if (!didDragRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
+    didDragRef.current = false;
+  }, []);
 
   return (
     <DndContext
@@ -275,7 +345,12 @@ export function TreeScrollableContent() {
         className={`transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
       >
         {rows.map((row) => {
-          const key = row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`;
+          const key =
+            row.kind === "node"
+              ? row.id
+              : row.kind === "afterDrop"
+                ? `${row.nodeId}-after`
+                : `${row.parentId ?? "root"}-more`;
 
           return (
             <TreeRow
@@ -284,6 +359,8 @@ export function TreeScrollableContent() {
               activeId={activeId}
               dropTarget={dropTarget}
               parentHighlightId={parentHighlightId}
+              onRowClickCapture={handleRowClickCapture}
+              isAnyDragging={Boolean(activeId)}
             />
           );
         })}

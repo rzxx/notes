@@ -442,7 +442,8 @@ export type { Note, NodeMeta, TreeState, TreeActions };
 
 type NodeRow = { kind: "node"; id: string; depth: number };
 type LoadMoreRow = { kind: "loadMore"; parentId: string | null; depth: number };
-export type FlatRow = NodeRow | LoadMoreRow;
+type AfterDropRow = { kind: "afterDrop"; nodeId: string; parentId: string | null; depth: number };
+export type FlatRow = NodeRow | LoadMoreRow | AfterDropRow;
 
 const makeFlatSelector = () => {
   let prevRootIds: string[] | null = null;
@@ -485,16 +486,27 @@ export function buildFlat(
 ): FlatRow[] {
   const out: FlatRow[] = [];
 
-  const walk = (id: string, depth: number) => {
+  const walk = (
+    id: string,
+    depth: number,
+    parentId: string | null,
+    siblings: string[],
+    index: number,
+  ) => {
     out.push({ kind: "node", id, depth });
     const meta = state.meta[id];
     if (!meta?.isExpanded) return;
 
-    meta.childrenIds.forEach((childId) => walk(childId, depth + 1));
+    meta.childrenIds.forEach((childId, childIndex) =>
+      walk(childId, depth + 1, id, meta.childrenIds, childIndex),
+    );
     if (meta.hasMore) out.push({ kind: "loadMore", parentId: id, depth: depth + 1 });
+    if (index === siblings.length - 1) {
+      out.push({ kind: "afterDrop", nodeId: id, parentId, depth });
+    }
   };
 
-  state.rootIds.forEach((id) => walk(id, 0));
+  state.rootIds.forEach((id, index) => walk(id, 0, null, state.rootIds, index));
 
   if (state.rootPagination.hasMore) {
     out.push({ kind: "loadMore", parentId: null, depth: 0 });

@@ -26,6 +26,8 @@ export function TreeNodeRowLayout({
   dragAttributes,
   dragListeners,
   setRowRef,
+  onRowClickCapture,
+  disableLinkPointerEvents,
 }: {
   node: Note;
   row: Extract<FlatRow, { kind: "node" }>;
@@ -47,6 +49,8 @@ export function TreeNodeRowLayout({
   dragAttributes?: React.HTMLAttributes<HTMLDivElement>;
   dragListeners?: Record<string, unknown>;
   setRowRef?: (element: HTMLDivElement | null) => void;
+  onRowClickCapture?: (event: React.MouseEvent) => void;
+  disableLinkPointerEvents?: boolean;
 }) {
   const expandTitle = canExpand ? (isExpanded ? "Collapse" : "Expand") : "No children";
   const showDropInside = dropIndicator === "inside";
@@ -89,7 +93,12 @@ export function TreeNodeRowLayout({
         )}
       </button>
 
-      <Link href={`/note/${row.id}`} onNavigate={onSelect} className="flex flex-1 items-center">
+      <Link
+        href={`/note/${row.id}`}
+        onNavigate={onSelect}
+        onClickCapture={onRowClickCapture}
+        className={`flex flex-1 items-center ${disableLinkPointerEvents ? "pointer-events-none" : ""}`}
+      >
         <div className="flex flex-1 flex-col">
           <div
             className={`flex items-center gap-2 text-sm text-stone-700 ${isSelected ? "font-semibold" : "font-medium"} ${isFetching ? "animate-pulse" : ""}`}
