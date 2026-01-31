@@ -2,17 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Menu } from "@base-ui/react/menu";
-import {
-  ChevronDown,
-  ChevronRight,
-  CircleAlert,
-  Ellipsis,
-  Moon,
-  MoveDown,
-  MoveVertical,
-  Trash,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, CircleAlert, Moon, MoveDown } from "lucide-react";
 import type { FlatRow, Note } from "@/lib/stores/tree";
 
 export function TreeNodeRowLayout({
@@ -29,7 +19,7 @@ export function TreeNodeRowLayout({
   onToggle,
   onSelect,
   onPrefetch,
-  onDelete,
+  actionsSlot,
   dropIndicator = null,
   isParentDropTarget = false,
   isDragging = false,
@@ -50,7 +40,7 @@ export function TreeNodeRowLayout({
   onToggle: () => void;
   onSelect: () => void;
   onPrefetch?: () => void;
-  onDelete?: () => void;
+  actionsSlot?: React.ReactNode;
   dropIndicator?: "before" | "after" | "inside" | null;
   isParentDropTarget?: boolean;
   isDragging?: boolean;
@@ -105,14 +95,7 @@ export function TreeNodeRowLayout({
             className={`flex items-center gap-2 text-sm text-stone-700 ${isSelected ? "font-semibold" : "font-medium"} ${isFetching ? "animate-pulse" : ""}`}
           >
             <span>{node.title}</span>
-            {/* {isFetching ? (
-              <span className="text-xs font-normal text-stone-500">Loading…</span>
-            ) : null} */}
           </div>
-          {/* Can unhide IDs for debug purposes */}
-          {/* <div className="line-clamp-1 text-xs text-stone-400">{node.id}</div> */}
-          {/* Can unhide ranks for debug purposes */}
-          {/* <div className="line-clamp-1 text-xs text-stone-400">{node.rank}</div> */}
         </div>
       </Link>
 
@@ -123,23 +106,7 @@ export function TreeNodeRowLayout({
         {error ? <CircleAlert size={16} className="text-red-600" /> : null}
       </div>
 
-      <Menu.Root>
-        <Menu.Trigger className="absolute right-0 mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:cursor-pointer">
-          <Ellipsis size={24} strokeWidth={1.5} className="text-stone-500" />
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner sideOffset={16} side="right">
-            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 flex gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 align-baseline shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
-              <Menu.Item
-                onClick={onDelete}
-                className="rounded-lg p-2 transition-colors hover:cursor-pointer hover:bg-stone-200"
-              >
-                <Trash size={24} className="text-red-700" />
-              </Menu.Item>
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
+      {actionsSlot}
     </div>
   );
 }

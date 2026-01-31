@@ -4,6 +4,7 @@ import * as React from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { useTreeStore, type FlatRow, type NodeMeta, type Note } from "@/lib/stores/tree";
 import { TreeNodeRowLayout } from "@/components/tree-view/TreeNodeRowLayout";
+import { TreeNodeRowActions } from "@/components/tree-view/TreeNodeRowActions";
 import { useExpandableRow } from "@/components/tree-view/hooks";
 import { useDeleteNote } from "@/lib/hooks/mutations/useDeleteNote";
 import type { DropTarget, DropPosition } from "@/components/tree-view/tree-dnd-types";
@@ -78,6 +79,10 @@ export function TreeNodeRow({
   const isActiveRow = activeId === row.id;
   const isParentDropTarget = parentHighlightId === row.id;
 
+  const actionsSlot = (
+    <TreeNodeRowActions node={node} onDelete={handleDelete} showDebugInfo={false} />
+  );
+
   if (!canExpand) {
     return (
       <TreeNodeRowLayout
@@ -93,7 +98,7 @@ export function TreeNodeRow({
         isStale={false}
         onToggle={() => {}}
         onSelect={handleSelect}
-        onDelete={handleDelete}
+        actionsSlot={actionsSlot}
         dropIndicator={dropIndicator}
         isParentDropTarget={isParentDropTarget}
         isDragging={isActiveRow || isDragging}
@@ -113,7 +118,7 @@ export function TreeNodeRow({
       onSelect={handleSelect}
       toggleExpanded={toggleExpanded}
       node={node}
-      onDelete={handleDelete}
+      actionsSlot={actionsSlot}
       dropIndicator={dropIndicator}
       isParentDropTarget={isParentDropTarget}
       isDragging={isActiveRow || isDragging}
@@ -132,7 +137,7 @@ function ExpandableTreeNodeRow({
   isSelected,
   onSelect,
   toggleExpanded,
-  onDelete,
+  actionsSlot,
   dropIndicator,
   isParentDropTarget,
   isDragging,
@@ -147,7 +152,7 @@ function ExpandableTreeNodeRow({
   isSelected: boolean;
   onSelect: () => void;
   toggleExpanded: (id: string, expanded?: boolean) => void;
-  onDelete?: () => void;
+  actionsSlot?: React.ReactNode;
   dropIndicator: DropPosition | null;
   isParentDropTarget: boolean;
   isDragging: boolean;
@@ -177,7 +182,7 @@ function ExpandableTreeNodeRow({
       onToggle={expandable.onToggle}
       onSelect={onSelect}
       onPrefetch={expandable.onPrefetch}
-      onDelete={onDelete}
+      actionsSlot={actionsSlot}
       dropIndicator={dropIndicator}
       isParentDropTarget={isParentDropTarget}
       isDragging={isDragging}

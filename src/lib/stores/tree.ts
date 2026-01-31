@@ -11,6 +11,7 @@ type Note = {
   rank: string;
   hasChildren: boolean;
   createdAt: string;
+  updatedAt?: string;
 };
 
 type NodeMeta = {

@@ -1,0 +1,107 @@
+"use client";
+
+import * as React from "react";
+import { Menu } from "@base-ui/react/menu";
+import { Dialog } from "@base-ui/react/dialog";
+import { Ellipsis, Trash, Info } from "lucide-react";
+import type { Note } from "@/lib/stores/tree";
+
+function formatDate(dateString: string): string {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleString();
+}
+
+export function TreeNodeRowActions({
+  node,
+  onDelete,
+  showDebugInfo = false,
+}: {
+  node: Note;
+  onDelete: () => void;
+  showDebugInfo?: boolean;
+}) {
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  const handleDeleteClick = () => {
+    setDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    onDelete();
+    setDialogOpen(false);
+  };
+
+  return (
+    <>
+      <Menu.Root>
+        <Menu.Trigger className="absolute right-0 mr-2 opacity-0 transition-opacity group-hover:opacity-100 hover:cursor-pointer">
+          <Ellipsis size={24} strokeWidth={1.5} className="text-stone-500" />
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={16} side="right">
+            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-8 starting-or-ending:scale-y-0 rounded-lg border border-stone-200 bg-stone-50 p-2 shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
+              {/* Metadata Section */}
+              <div className="mb-2 border-b border-stone-200 pb-2">
+                <div className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-stone-600">
+                  <Info size={14} />
+                  <span>Note Info</span>
+                </div>
+                <div className="px-2 py-1 text-xs text-stone-500">
+                  <div>Created: {formatDate(node.createdAt)}</div>
+                  {node.updatedAt && <div>Updated: {formatDate(node.updatedAt)}</div>}
+                </div>
+              </div>
+
+              {/* Debug Info (optional) */}
+              {!showDebugInfo && (
+                <div className="mb-2 border-b border-stone-200 pb-2">
+                  <div className="px-2 py-1 text-xs text-stone-400">
+                    <div>ID: {node.id}</div>
+                    <div>Rank: {node.rank}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Delete Action */}
+              <Menu.Item
+                onClick={handleDeleteClick}
+                className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-700 transition-colors hover:cursor-pointer hover:bg-red-50"
+              >
+                <Trash size={18} />
+                <span>Delete Note</span>
+              </Menu.Item>
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="fixed inset-0 bg-black/30 transition-opacity data-closed:opacity-0 data-open:opacity-100" />
+          <Dialog.Popup className="fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-stone-200 bg-stone-50 p-6 shadow-xl transition-all data-closed:scale-95 data-closed:opacity-0 data-open:scale-100 data-open:opacity-100">
+            <Dialog.Title className="mb-2 text-lg font-semibold text-stone-800">
+              Delete Note?
+            </Dialog.Title>
+            <Dialog.Description className="mb-6 text-sm text-stone-600">
+              Are you sure you want to delete &quot;{node.title}&quot;? This action cannot be
+              undone.
+            </Dialog.Description>
+            <div className="flex justify-end gap-2">
+              <Dialog.Close className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50">
+                Cancel
+              </Dialog.Close>
+              <button
+                onClick={handleConfirmDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  );
+}
