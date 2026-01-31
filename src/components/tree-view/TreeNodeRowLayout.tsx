@@ -56,7 +56,7 @@ export function TreeNodeRowLayout({
   return (
     <div
       ref={setRowRef}
-      className={`group relative flex items-center gap-1 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"} ${showDropInside ? "bg-stone-200/60 ring-1 ring-stone-300" : ""} ${isParentDropTarget ? "bg-stone-200/40 ring-1 ring-stone-200" : ""} ${isDragging ? "opacity-25" : ""}`}
+      className={`group relative flex items-center gap-1 py-0.5 transition-colors ${isSelected ? "bg-stone-100" : "bg-stone-50 hover:bg-stone-100"} ${showDropInside ? "bg-stone-200/60 ring-1 ring-stone-300" : ""} ${isParentDropTarget ? "bg-stone-200/40 ring-1 ring-stone-200" : ""} ${isDragging ? "opacity-25" : ""}`}
       style={{ paddingLeft: row.depth * 12 }}
       {...dragAttributes}
       {...dragListeners}

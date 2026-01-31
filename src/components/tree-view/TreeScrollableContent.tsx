@@ -272,7 +272,7 @@ export function TreeScrollableContent() {
     >
       <div
         ref={setRootDropRef}
-        className={`space-y-1 transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
+        className={`transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
       >
         {rows.map((row) => {
           const key = row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`;
