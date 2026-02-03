@@ -59,6 +59,7 @@ export function TreeNodeRowLayout({
   const showDropBefore = dropIndicator === "before";
   const showDropAfter = dropIndicator === "after";
   const dropAfterDepth = dropIndicatorDepth ?? row.depth;
+  const depthLines = Array.from({ length: Math.max(0, row.depth) }, (_, index) => index);
 
   return (
     <div
@@ -68,6 +69,19 @@ export function TreeNodeRowLayout({
       {...dragAttributes}
       {...dragListeners}
     >
+      {depthLines.length ? (
+        <div className="pointer-events-none absolute inset-y-0 left-0">
+          {depthLines.map((depth) => (
+            <div
+              key={depth}
+              className={`absolute top-0 bottom-0 w-px ${
+                depth === row.depth - 1 ? "bg-stone-400/50" : "bg-stone-300/25"
+              }`}
+              style={{ left: depth * 12 + 12 }}
+            />
+          ))}
+        </div>
+      ) : null}
       {showDropBefore ? (
         <div
           className="pointer-events-none absolute top-0 right-2 left-0 h-0.5 bg-stone-400"
