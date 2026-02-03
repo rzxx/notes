@@ -54,7 +54,7 @@ export function TreeNodeRowActions({
               <div className="mb-2 border-b border-stone-200 pb-2">
                 <div className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-stone-600">
                   <Info size={14} />
-                  <span>Note Info</span>
+                  <span className="line-clamp-1">{node.title}</span>
                 </div>
                 <div className="px-2 py-1 text-xs text-stone-500">
                   <div>Created: {formatDate(node.createdAt)}</div>
