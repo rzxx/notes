@@ -16,6 +16,37 @@ type CreateNoteResponse = {
   note: { id: string; createdAt: string; rank: string };
 };
 
+const normalizeTitle = (title: string) => title.trim().toLowerCase();
+
+const collectSiblingTitles = (parentId: string | null) => {
+  const state = useTreeStore.getState();
+  const titles = new Set<string>();
+  const siblings = parentId === null ? state.rootIds : (state.meta[parentId]?.childrenIds ?? []);
+  siblings.forEach((id) => {
+    const node = state.nodes[id];
+    if (node?.title) {
+      titles.add(normalizeTitle(node.title));
+    }
+  });
+
+  return titles;
+};
+
+const ensureUniqueTitle = (parentId: string | null, title: string) => {
+  const baseTitle = title.trim();
+  if (!baseTitle) return title;
+  const titles = collectSiblingTitles(parentId);
+  if (!titles.has(normalizeTitle(baseTitle))) return baseTitle;
+
+  let suffix = 2;
+  let candidate = `${baseTitle} (${suffix})`;
+  while (titles.has(normalizeTitle(candidate))) {
+    suffix += 1;
+    candidate = `${baseTitle} (${suffix})`;
+  }
+  return candidate;
+};
+
 async function createNote(input: CreateNoteInput) {
   const result = await fetchResult<CreateNoteResponse>("/api/notes", {
     method: "POST",
@@ -36,6 +67,7 @@ export function useCreateNote() {
   return useMutation({
     mutationFn: createNote,
     onMutate: async (variables) => {
+      variables.title = ensureUniqueTitle(variables.parentId, variables.title);
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.parentId) });
 
       const tempId = `temp-${
