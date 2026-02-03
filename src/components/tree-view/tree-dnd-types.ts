@@ -6,4 +6,5 @@ export type DropTarget = {
   newParentId: string | null;
   beforeId?: string | null;
   afterId?: string | null;
+  indicatorDepth?: number | null;
 };

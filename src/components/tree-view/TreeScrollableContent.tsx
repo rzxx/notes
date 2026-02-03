@@ -54,6 +54,34 @@ const getDropPosition = (
   return centerY < overRect.top + overRect.height / 2 ? "before" : "after";
 };
 
+const getPointerDepth = (
+  pointer: { x: number; y: number } | null,
+  overRect: { top: number; height: number; left: number; width: number } | null,
+) => {
+  if (!pointer || !overRect) return null;
+  const baseLeft = overRect.left + 24;
+  const rawDepth = Math.round((pointer.x - baseLeft) / 12);
+  return Math.max(0, rawDepth);
+};
+
+type GroupEndMarker = { parentId: string | null; afterId: string; depth: number };
+
+const pickGroupEndMarker = (
+  markers: GroupEndMarker[],
+  desiredDepth: number,
+): GroupEndMarker | null => {
+  let chosen: GroupEndMarker | null = null;
+  let closest = Number.POSITIVE_INFINITY;
+  markers.forEach((marker) => {
+    const diff = Math.abs(marker.depth - desiredDepth);
+    if (diff < closest) {
+      chosen = marker;
+      closest = diff;
+    }
+  });
+  return chosen;
+};
+
 const isDescendant = (
   ancestorId: string,
   candidateId: string | null,
@@ -116,7 +144,8 @@ export function TreeScrollableContent() {
       a.position === b.position &&
       a.newParentId === b.newParentId &&
       a.beforeId === b.beforeId &&
-      a.afterId === b.afterId
+      a.afterId === b.afterId &&
+      a.indicatorDepth === b.indicatorDepth
     );
   }, []);
 
@@ -162,46 +191,12 @@ export function TreeScrollableContent() {
             isExpanded?: boolean;
             hasChildren?: boolean;
             firstChildId?: string | null;
-          }
-        | {
-            kind?: "after";
-            nodeId?: string;
-            parentId?: string | null;
-            depth?: number;
+            groupEndMarkers?: GroupEndMarker[];
           }
         | undefined;
 
       if (!overData) {
         setDropTarget((prev) => (prev ? null : prev));
-        return;
-      }
-
-      if (overData.kind === "after") {
-        const targetNodeId = overData.nodeId ?? null;
-        const newParentId = overData.parentId ?? null;
-        if (!targetNodeId || targetNodeId === activeId) {
-          setDropTarget((prev) => (prev ? null : prev));
-          return;
-        }
-
-        if (newParentId === activeId) {
-          setDropTarget((prev) => (prev ? null : prev));
-          return;
-        }
-
-        if (isDescendant(activeId, newParentId, meta)) {
-          setDropTarget((prev) => (prev ? null : prev));
-          return;
-        }
-
-        const nextTarget = {
-          overId,
-          position: "after" as const,
-          newParentId,
-          beforeId: null,
-          afterId: targetNodeId,
-        };
-        setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
         return;
       }
 
@@ -230,10 +225,26 @@ export function TreeScrollableContent() {
         nextPosition = "inside";
         forcedBeforeId = overData.firstChildId ?? null;
       }
+      const rowDepth = overData.depth ?? 0;
+      let indicatorDepth = rowDepth;
+      let newParentId = nextPosition === "inside" ? overId : (overData.parentId ?? null);
+      let beforeId = nextPosition === "before" ? overId : forcedBeforeId;
+      let afterId = nextPosition === "after" ? overId : null;
 
-      const newParentId = nextPosition === "inside" ? overId : (overData.parentId ?? null);
-      const beforeId = nextPosition === "before" ? overId : forcedBeforeId;
-      const afterId = nextPosition === "after" ? overId : null;
+      if (nextPosition === "after") {
+        const pointerDepth = getPointerDepth(pointer, overRect);
+        const markers: GroupEndMarker[] = overData.groupEndMarkers ?? [];
+        if (pointerDepth !== null && pointerDepth < rowDepth && markers.length) {
+          const marker = pickGroupEndMarker(markers, pointerDepth);
+          if (marker) {
+            const selected = marker as GroupEndMarker;
+            newParentId = selected.parentId;
+            afterId = selected.afterId;
+            beforeId = null;
+            indicatorDepth = selected.depth;
+          }
+        }
+      }
 
       if (newParentId === activeId) {
         setDropTarget((prev) => (prev ? null : prev));
@@ -245,7 +256,14 @@ export function TreeScrollableContent() {
         return;
       }
 
-      const nextTarget = { overId, position: nextPosition, newParentId, beforeId, afterId };
+      const nextTarget = {
+        overId,
+        position: nextPosition,
+        newParentId,
+        beforeId,
+        afterId,
+        indicatorDepth,
+      };
       setDropTarget((prev) => (isSameDropTarget(prev, nextTarget) ? prev : nextTarget));
     },
     [activeId, isSameDropTarget, meta],
@@ -345,12 +363,7 @@ export function TreeScrollableContent() {
         className={`transition-[opacity,translate,scale] duration-300 ${rows.length > 0 ? "opacity-100" : "-translate-x-2 scale-95 opacity-0"}`}
       >
         {rows.map((row) => {
-          const key =
-            row.kind === "node"
-              ? row.id
-              : row.kind === "afterDrop"
-                ? `${row.nodeId}-after`
-                : `${row.parentId ?? "root"}-more`;
+          const key = row.kind === "node" ? row.id : `${row.parentId ?? "root"}-more`;
 
           return (
             <TreeRow

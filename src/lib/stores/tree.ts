@@ -440,10 +440,15 @@ export const useTreeStore = create<TreeState & TreeActions>((set) => ({
 
 export type { Note, NodeMeta, TreeState, TreeActions };
 
-type NodeRow = { kind: "node"; id: string; depth: number };
+type GroupEndMarker = { parentId: string | null; afterId: string; depth: number };
+type NodeRow = {
+  kind: "node";
+  id: string;
+  depth: number;
+  groupEndMarkers?: GroupEndMarker[];
+};
 type LoadMoreRow = { kind: "loadMore"; parentId: string | null; depth: number };
-type AfterDropRow = { kind: "afterDrop"; nodeId: string; parentId: string | null; depth: number };
-export type FlatRow = NodeRow | LoadMoreRow | AfterDropRow;
+export type FlatRow = NodeRow | LoadMoreRow;
 
 const makeFlatSelector = () => {
   let prevRootIds: string[] | null = null;
@@ -486,6 +491,16 @@ export function buildFlat(
 ): FlatRow[] {
   const out: FlatRow[] = [];
 
+  const appendGroupEndMarker = (marker: GroupEndMarker) => {
+    for (let i = out.length - 1; i >= 0; i -= 1) {
+      const row = out[i];
+      if (row?.kind === "node") {
+        row.groupEndMarkers = row.groupEndMarkers ? [...row.groupEndMarkers, marker] : [marker];
+        return;
+      }
+    }
+  };
+
   const walk = (
     id: string,
     depth: number,
@@ -502,7 +517,7 @@ export function buildFlat(
     );
     if (meta.hasMore) out.push({ kind: "loadMore", parentId: id, depth: depth + 1 });
     if (index === siblings.length - 1) {
-      out.push({ kind: "afterDrop", nodeId: id, parentId, depth });
+      appendGroupEndMarker({ parentId, afterId: id, depth });
     }
   };
 

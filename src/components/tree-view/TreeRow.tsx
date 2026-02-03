@@ -4,7 +4,6 @@ import type * as React from "react";
 import type { FlatRow } from "@/lib/stores/tree";
 import { LoadMoreRow } from "@/components/tree-view/LoadMoreRow";
 import { TreeNodeRow } from "@/components/tree-view/TreeNodeRow";
-import { TreeAfterDropRow } from "@/components/tree-view/TreeAfterDropRow";
 import type { DropTarget } from "@/components/tree-view/tree-dnd-types";
 
 export function TreeRow({
@@ -33,9 +32,6 @@ export function TreeRow({
         isAnyDragging={isAnyDragging}
       />
     );
-  }
-  if (row.kind === "afterDrop") {
-    return <TreeAfterDropRow row={row} dropTarget={dropTarget} isDragging={Boolean(activeId)} />;
   }
   return <LoadMoreRow row={row} />;
 }

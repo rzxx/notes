@@ -63,6 +63,7 @@ export function TreeNodeRow({
       isExpanded,
       hasChildren,
       firstChildId,
+      groupEndMarkers: row.groupEndMarkers ?? [],
     },
   });
 
@@ -86,6 +87,7 @@ export function TreeNodeRow({
   const handleSelect = () => select(row.id);
   const dropIndicator: DropPosition | null =
     dropTarget?.overId === row.id ? dropTarget.position : null;
+  const dropIndicatorDepth = dropTarget?.overId === row.id ? dropTarget.indicatorDepth : null;
   const isActiveRow = activeId === row.id;
   const isParentDropTarget = parentHighlightId === row.id;
 
@@ -115,6 +117,7 @@ export function TreeNodeRow({
         onSelect={handleSelect}
         actionsSlot={actionsSlot}
         dropIndicator={dropIndicator}
+        dropIndicatorDepth={dropIndicatorDepth}
         isParentDropTarget={isParentDropTarget}
         isDragging={isActiveRow || isDragging}
         dragAttributes={attributes}
@@ -137,6 +140,7 @@ export function TreeNodeRow({
       node={node}
       actionsSlot={actionsSlot}
       dropIndicator={dropIndicator}
+      dropIndicatorDepth={dropIndicatorDepth}
       isParentDropTarget={isParentDropTarget}
       isDragging={isActiveRow || isDragging}
       dragAttributes={attributes}
@@ -158,6 +162,7 @@ function ExpandableTreeNodeRow({
   toggleExpanded,
   actionsSlot,
   dropIndicator,
+  dropIndicatorDepth,
   isParentDropTarget,
   isDragging,
   dragAttributes,
@@ -175,6 +180,7 @@ function ExpandableTreeNodeRow({
   toggleExpanded: (id: string, expanded?: boolean) => void;
   actionsSlot?: React.ReactNode;
   dropIndicator: DropPosition | null;
+  dropIndicatorDepth?: number | null;
   isParentDropTarget: boolean;
   isDragging: boolean;
   dragAttributes: ReturnType<typeof useDraggable>["attributes"];
@@ -207,6 +213,7 @@ function ExpandableTreeNodeRow({
       onPrefetch={expandable.onPrefetch}
       actionsSlot={actionsSlot}
       dropIndicator={dropIndicator}
+      dropIndicatorDepth={dropIndicatorDepth}
       isParentDropTarget={isParentDropTarget}
       isDragging={isDragging}
       dragAttributes={dragAttributes}

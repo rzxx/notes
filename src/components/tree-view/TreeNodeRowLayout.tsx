@@ -21,6 +21,7 @@ export function TreeNodeRowLayout({
   onPrefetch,
   actionsSlot,
   dropIndicator = null,
+  dropIndicatorDepth,
   isParentDropTarget = false,
   isDragging = false,
   dragAttributes,
@@ -44,6 +45,7 @@ export function TreeNodeRowLayout({
   onPrefetch?: () => void;
   actionsSlot?: React.ReactNode;
   dropIndicator?: "before" | "after" | "inside" | null;
+  dropIndicatorDepth?: number | null;
   isParentDropTarget?: boolean;
   isDragging?: boolean;
   dragAttributes?: React.HTMLAttributes<HTMLDivElement>;
@@ -56,6 +58,7 @@ export function TreeNodeRowLayout({
   const showDropInside = dropIndicator === "inside";
   const showDropBefore = dropIndicator === "before";
   const showDropAfter = dropIndicator === "after";
+  const dropAfterDepth = dropIndicatorDepth ?? row.depth;
 
   return (
     <div
@@ -74,7 +77,7 @@ export function TreeNodeRowLayout({
       {showDropAfter ? (
         <div
           className="pointer-events-none absolute right-2 bottom-0 left-0 h-0.5 bg-stone-400"
-          style={{ left: row.depth * 12 + 24 }}
+          style={{ left: dropAfterDepth * 12 + 24 }}
         />
       ) : null}
       <button
