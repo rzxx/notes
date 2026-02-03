@@ -75,7 +75,7 @@ export function TreeNodeRowLayout({
             <div
               key={depth}
               className={`absolute top-0 bottom-0 w-px ${
-                depth === row.depth - 1 ? "bg-stone-400/50" : "bg-stone-300/25"
+                depth === row.depth - 1 ? "bg-stone-300/75" : "bg-stone-300/25"
               }`}
               style={{ left: depth * 12 + 12 }}
             />
