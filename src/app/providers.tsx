@@ -1,12 +1,36 @@
 "use client";
 
 import * as React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toast } from "@base-ui/react/toast";
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { defaultQueryOptions } from "@/lib/query-config";
+import { toToastMessage } from "@/lib/error-messages";
+import { toastManager } from "@/lib/toast-manager";
+import { NotificationToasts } from "@/components/toasts/NotificationToasts";
 
 function makeQueryClient() {
   return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error) => {
+        const message = toToastMessage(error);
+        toastManager.add({
+          title: message.title,
+          description: message.description,
+          data: { type: message.type ?? "default" },
+        });
+      },
+    }),
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        const message = toToastMessage(error);
+        toastManager.add({
+          title: message.title,
+          description: message.description,
+          data: { type: message.type ?? "default" },
+        });
+      },
+    }),
     defaultOptions: {
       queries: defaultQueryOptions,
     },
@@ -28,8 +52,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      <Toast.Provider toastManager={toastManager}>
+        {children}
+        <NotificationToasts />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </Toast.Provider>
     </QueryClientProvider>
   );
 }
