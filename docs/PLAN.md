@@ -131,6 +131,9 @@ Editor behaviors (minimal):
 - Reorder blocks (up/down buttons first; drag later)
 - Autosave on debounce or blur
 - Optimistic update via TanStack Query for block edits
+  - Client block hooks in `src/lib/hooks/editor/` [done]
+  - `useUpdateBlock` provides debounced `updateBlock` plus `flush()` for blur/enter [done]
+  - Optimistic insert uses temp IDs + position normalization [done]
 
 **Why:** this proves your block CRUD + optimistic mutations + ordering scheme.
 

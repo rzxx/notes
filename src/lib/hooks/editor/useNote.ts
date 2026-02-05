@@ -3,33 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-
-type NoteDetail = {
-  id: string;
-  parentId: string | null;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type NoteBlock = {
-  id: string;
-  type: string;
-  position: number;
-  contentJson: unknown;
-  plainText: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type NoteResponse = {
-  ok: true;
-  note: NoteDetail;
-  blocks: NoteBlock[];
-};
+import type { NoteDetailResponse } from "@/lib/hooks/editor/types";
 
 async function fetchNote(noteId: string) {
-  const result = await fetchResult<NoteResponse>(`/api/notes/${noteId}`, {
+  const result = await fetchResult<NoteDetailResponse>(`/api/notes/${noteId}`, {
     method: "GET",
     headers: { "content-type": "application/json" },
   });

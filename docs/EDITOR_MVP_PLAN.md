@@ -32,14 +32,23 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
    - Implemented with `safeJsonParse`, `safeParseToResult`, and `appErrorToHttp` for consistent errors.
 
 3. Client hooks
-   - `useCreateBlock`, `useUpdateBlock`, `useDeleteBlock`, `useReorderBlocks`.
-   - Optimistically update `queryKeys.notes.detail(noteId)`.
-   - Debounce `useUpdateBlock` for typing.
+   - Implemented in `src/lib/hooks/editor/`:
+     - `useCreateBlock`, `useUpdateBlock`, `useDeleteBlock`, `useReorderBlocks`.
+     - Shared types in `src/lib/hooks/editor/types.ts` (used by `useNote`).
+   - Optimistically update `queryKeys.notes.detail(noteId)` and normalize positions.
+   - `useUpdateBlock` uses a debounced `updateBlock` plus `flush()` for blur/enter.
 
 4. Editor UI
    - Replace the note page placeholder with a client editor.
    - Render blocks, allow typing, split/merge with Enter/Backspace.
    - Add up/down controls for reorder (drag later).
+
+## Zustand Store Ideas (Editor)
+
+- Keep server state (blocks list) in TanStack Query; keep only UI state in Zustand.
+- Suggested shape: `byNoteId[noteId] = { activeBlockId, selection, draftsByBlockId }`.
+- Drafts are optional: keep `{ text, dirtyAt, lastSyncedAt }` per block, then flush on debounce/blur.
+- Minimal actions: `setActiveBlock`, `setDraftText`, `clearDraft`, `flushDrafts(noteId)`.
 
 ## Optional Safety Rails
 
@@ -54,3 +63,4 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
   - Delete compacts positions > deleted position.
   - Reorder validates full coverage and uses a temporary offset to avoid unique collisions.
 - Reorder expects `orderedBlockIds` to include all blocks for the note; partial lists are rejected.
+- Client hooks create temp IDs on optimistic insert and replace on success.
