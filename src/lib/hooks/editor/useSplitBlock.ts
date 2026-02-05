@@ -10,6 +10,7 @@ type SplitBlockInput = {
   blockId: string;
   beforeText: string;
   afterText: string;
+  tempId?: string;
 };
 
 type SplitBlockResponse = {
@@ -18,7 +19,7 @@ type SplitBlockResponse = {
   newBlock: NoteBlock;
 };
 
-const makeTempId = () =>
+export const makeTempId = () =>
   `temp-${
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -67,7 +68,7 @@ export function useSplitBlock() {
       const target = previous.blocks.find((block) => block.id === variables.blockId);
       if (!target) return { previous, tempId: null } as const;
 
-      const tempId = makeTempId();
+      const tempId = variables.tempId ?? makeTempId();
       const now = new Date().toISOString();
       const tempBlock: NoteBlock = {
         id: tempId,
