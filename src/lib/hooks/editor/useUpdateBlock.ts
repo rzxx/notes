@@ -41,8 +41,8 @@ async function updateBlock(input: UpdateBlockInput) {
 export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   const queryClient = useQueryClient();
   const debounceMs = options?.debounceMs ?? 350;
-  const timeoutRef = useRef<number | null>(null);
-  const pendingRef = useRef<UpdateBlockInput | null>(null);
+  const timeoutRef = useRef(new Map<string, number>());
+  const pendingRef = useRef(new Map<string, UpdateBlockInput>());
 
   const mutation = useMutation({
     mutationFn: updateBlock,
@@ -88,42 +88,67 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
 
   const updateBlockDebounced = useCallback(
     (input: UpdateBlockInput) => {
-      pendingRef.current = input;
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = window.setTimeout(() => {
-        const payload = pendingRef.current;
-        pendingRef.current = null;
+      pendingRef.current.set(input.blockId, input);
+      const existing = timeoutRef.current.get(input.blockId);
+      if (existing) window.clearTimeout(existing);
+      const timeoutId = window.setTimeout(() => {
+        const payload = pendingRef.current.get(input.blockId);
+        pendingRef.current.delete(input.blockId);
+        timeoutRef.current.delete(input.blockId);
         if (payload) mutate(payload);
       }, debounceMs);
+      timeoutRef.current.set(input.blockId, timeoutId);
     },
     [debounceMs, mutate],
   );
 
-  const flush = useCallback(() => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    const payload = pendingRef.current;
-    pendingRef.current = null;
-    if (payload) mutate(payload);
-  }, [mutate]);
+  const flush = useCallback(
+    (blockId?: string) => {
+      if (blockId) {
+        const timeoutId = timeoutRef.current.get(blockId);
+        if (timeoutId) window.clearTimeout(timeoutId);
+        timeoutRef.current.delete(blockId);
+        const payload = pendingRef.current.get(blockId);
+        pendingRef.current.delete(blockId);
+        if (payload) mutate(payload);
+        return;
+      }
 
-  const cancel = useCallback(() => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+      for (const timeoutId of timeoutRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutRef.current.clear();
+      for (const payload of pendingRef.current.values()) {
+        mutate(payload);
+      }
+      pendingRef.current.clear();
+    },
+    [mutate],
+  );
+
+  const cancel = useCallback((blockId?: string) => {
+    if (blockId) {
+      const timeoutId = timeoutRef.current.get(blockId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutRef.current.delete(blockId);
+      pendingRef.current.delete(blockId);
+      return;
     }
-    pendingRef.current = null;
+
+    for (const timeoutId of timeoutRef.current.values()) {
+      window.clearTimeout(timeoutId);
+    }
+    timeoutRef.current.clear();
+    pendingRef.current.clear();
   }, []);
 
   useEffect(
     () => () => {
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
+      for (const timeoutId of timeoutRef.current.values()) {
+        window.clearTimeout(timeoutId);
       }
+      timeoutRef.current.clear();
+      pendingRef.current.clear();
     },
     [],
   );

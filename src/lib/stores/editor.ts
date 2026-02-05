@@ -80,3 +80,9 @@ export type { EditorDraft, EditorNoteState, EditorState, EditorActions };
 
 export const selectEditorNote = (noteId: string) => (state: EditorState) =>
   state.byNoteId[noteId] ?? EMPTY_NOTE_STATE;
+
+export const selectActiveBlockId = (noteId: string) => (state: EditorState) =>
+  state.byNoteId[noteId]?.activeBlockId ?? null;
+
+export const selectDraftForBlock = (noteId: string, blockId: string) => (state: EditorState) =>
+  state.byNoteId[noteId]?.draftsByBlockId[blockId] ?? null;

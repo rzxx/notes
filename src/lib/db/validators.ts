@@ -76,3 +76,15 @@ export const reorderBlocksSchema = z.object({
   // simplest v1: send ordered ids; server assigns 0..n-1
   orderedBlockIds: z.array(z.uuid()).min(1),
 });
+
+export const splitBlockSchema = z.object({
+  blockId: z.uuid(),
+  beforeText: z.string(),
+  afterText: z.string(),
+});
+
+export const mergeBlocksSchema = z.object({
+  prevBlockId: z.uuid(),
+  currentBlockId: z.uuid(),
+  mergedText: z.string(),
+});

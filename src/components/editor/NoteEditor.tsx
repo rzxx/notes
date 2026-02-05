@@ -7,10 +7,12 @@ import { ChevronDown, ChevronUp, Ellipsis, Heading, Text } from "lucide-react";
 import { useNote } from "@/lib/hooks/editor/useNote";
 import { useCreateBlock } from "@/lib/hooks/editor/useCreateBlock";
 import { useDeleteBlock } from "@/lib/hooks/editor/useDeleteBlock";
+import { useMergeBlocks } from "@/lib/hooks/editor/useMergeBlocks";
 import { useReorderBlocks } from "@/lib/hooks/editor/useReorderBlocks";
+import { useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
 import { useUpdateBlock } from "@/lib/hooks/editor/useUpdateBlock";
 import type { NoteBlock } from "@/lib/hooks/editor/types";
-import { selectEditorNote, useEditorStore } from "@/lib/stores/editor";
+import { selectActiveBlockId, selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
 
 type BlockTextContent = {
   text?: string;
@@ -37,10 +39,12 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const noteQuery = useNote(noteId);
   const createBlock = useCreateBlock();
   const deleteBlock = useDeleteBlock();
+  const mergeBlocks = useMergeBlocks();
   const reorderBlocks = useReorderBlocks();
+  const splitBlock = useSplitBlock();
   const updateBlock = useUpdateBlock();
 
-  const { activeBlockId, draftsByBlockId } = useEditorStore(selectEditorNote(noteId));
+  const activeBlockId = useEditorStore(selectActiveBlockId(noteId));
   const setActiveBlock = useEditorStore((state) => state.setActiveBlock);
   const setDraftText = useEditorStore((state) => state.setDraftText);
   const clearDraft = useEditorStore((state) => state.clearDraft);
@@ -75,19 +79,6 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   }, [createBlock, noteId, noteQuery.data]);
 
   React.useEffect(() => {
-    if (!noteQuery.data) return;
-
-    noteQuery.data.blocks.forEach((block) => {
-      const draft = draftsByBlockId[block.id];
-      if (!draft) return;
-      const baseText = getBlockText(block);
-      if (normalizeDraftText(draft.text) === normalizeDraftText(baseText)) {
-        clearDraft(noteId, block.id);
-      }
-    });
-  }, [clearDraft, draftsByBlockId, noteId, noteQuery.data]);
-
-  React.useEffect(() => {
     if (!pendingFocus) return;
     const target = blockRefs.current[pendingFocus.id];
     if (!target) return;
@@ -102,13 +93,21 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     node.style.height = `${node.scrollHeight}px`;
   }, []);
 
+  const setBlockRef = React.useCallback(
+    (blockId: string, node: HTMLTextAreaElement | null) => {
+      blockRefs.current[blockId] = node;
+      resizeTextarea(node);
+    },
+    [resizeTextarea],
+  );
+
   const resizeAllTextareas = React.useCallback(() => {
     blocks.forEach((block) => resizeTextarea(blockRefs.current[block.id]));
   }, [blocks, resizeTextarea]);
 
   React.useLayoutEffect(() => {
     resizeAllTextareas();
-  }, [blocks, draftsByBlockId, resizeAllTextareas]);
+  }, [blocks, resizeAllTextareas]);
 
   React.useEffect(() => {
     const handleResize = () => resizeAllTextareas();
@@ -198,226 +197,262 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       </header>
 
       <section className="space-y-3">
-        {blocks.map((block, index) => {
-          const draft = draftsByBlockId[block.id];
-          const text = draft?.text ?? getBlockText(block);
-          const isActive = activeBlockId === block.id;
-          const isTop = index === 0;
-          const isBottom = index === blocks.length - 1;
-
-          const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-            const nextText = event.target.value;
-            resizeTextarea(event.currentTarget);
-            setDraftText(noteId, block.id, nextText);
-            updateBlock.updateBlock({
-              noteId,
-              blockId: block.id,
-              contentJson: { text: nextText },
-              plainText: nextText,
-            });
-          };
-
-          const handleBlur = () => {
-            updateBlock.flush();
-          };
-
-          const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              const originalText = text;
-              const selectionStart = event.currentTarget.selectionStart ?? text.length;
-              const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart;
-              const before = text.slice(0, selectionStart);
-              const after = text.slice(selectionEnd);
-
-              updateBlock.cancel();
-              setDraftText(noteId, block.id, before);
-              createBlock.mutate(
-                {
-                  noteId,
-                  type: block.type,
-                  position: block.position + 1,
-                  contentJson: { text: after },
-                  plainText: after,
-                },
-                {
-                  onSuccess: (data) => {
-                    updateBlock.mutate(
-                      {
-                        noteId,
-                        blockId: block.id,
-                        contentJson: { text: before },
-                        plainText: before,
-                      },
-                      {
-                        onError: () => {
-                          setDraftText(noteId, block.id, originalText);
-                          deleteBlock.mutate({ noteId, blockId: data.block.id });
-                          setActiveBlock(noteId, block.id);
-                          setPendingFocus({
-                            id: block.id,
-                            selectionStart,
-                            selectionEnd: selectionStart,
-                          });
-                        },
-                      },
-                    );
-                    setActiveBlock(noteId, data.block.id);
-                    setPendingFocus({
-                      id: data.block.id,
-                      selectionStart: 0,
-                      selectionEnd: 0,
-                    });
-                  },
-                  onError: () => {
-                    setDraftText(noteId, block.id, originalText);
-                    setActiveBlock(noteId, block.id);
-                    setPendingFocus({
-                      id: block.id,
-                      selectionStart,
-                      selectionEnd: selectionStart,
-                    });
-                  },
-                },
-              );
-              return;
-            }
-
-            if (event.key === "Backspace") {
-              const selectionStart = event.currentTarget.selectionStart ?? 0;
-              const selectionEnd = event.currentTarget.selectionEnd ?? 0;
-              if (selectionStart !== 0 || selectionEnd !== 0) return;
-              if (index === 0) return;
-
-              event.preventDefault();
-              const prevBlock = blocks[index - 1];
-              const prevText = draftsByBlockId[prevBlock.id]?.text ?? getBlockText(prevBlock);
-              const currentText = text;
-              const merged = `${prevText}${currentText}`;
-
-              updateBlock.cancel();
-              setDraftText(noteId, prevBlock.id, merged);
-              updateBlock.mutate(
-                {
-                  noteId,
-                  blockId: prevBlock.id,
-                  contentJson: { text: merged },
-                  plainText: merged,
-                },
-                {
-                  onSuccess: () => {
-                    clearDraft(noteId, block.id);
-                    deleteBlock.mutate(
-                      { noteId, blockId: block.id },
-                      {
-                        onError: () => {
-                          setDraftText(noteId, prevBlock.id, prevText);
-                          setDraftText(noteId, block.id, currentText);
-                          updateBlock.mutate({
-                            noteId,
-                            blockId: prevBlock.id,
-                            contentJson: { text: prevText },
-                            plainText: prevText,
-                          });
-                          setActiveBlock(noteId, block.id);
-                          setPendingFocus({
-                            id: block.id,
-                            selectionStart: 0,
-                            selectionEnd: 0,
-                          });
-                        },
-                      },
-                    );
-
-                    setActiveBlock(noteId, prevBlock.id);
-                    const caretPosition = prevText.length;
-                    setPendingFocus({
-                      id: prevBlock.id,
-                      selectionStart: caretPosition,
-                      selectionEnd: caretPosition,
-                    });
-                  },
-                  onError: () => {
-                    setDraftText(noteId, prevBlock.id, prevText);
-                    setActiveBlock(noteId, block.id);
-                    setPendingFocus({
-                      id: block.id,
-                      selectionStart: 0,
-                      selectionEnd: 0,
-                    });
-                  },
-                },
-              );
-            }
-          };
-
-          const handleTypeChange = (nextType: BlockType) => {
-            if (block.type === nextType) return;
-            updateBlock.updateBlock({
-              noteId,
-              blockId: block.id,
-              type: nextType,
-            });
-            updateBlock.flush();
-          };
-
-          return (
-            <div
-              key={block.id}
-              data-editor-block="true"
-              className={`group relative rounded-lg border px-3 py-2 transition-colors ${
-                isActive
-                  ? "border-stone-400 bg-white shadow-xs"
-                  : "border-transparent hover:border-stone-200"
-              }`}
-            >
-              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => handleMove(block.id, "up")}
-                  disabled={isTop || reorderBlocks.isPending}
-                  aria-label="Move block up"
-                >
-                  <ChevronUp size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => handleMove(block.id, "down")}
-                  disabled={isBottom || reorderBlocks.isPending}
-                  aria-label="Move block down"
-                >
-                  <ChevronDown size={14} />
-                </button>
-                <BlockActions
-                  block={block}
-                  onChangeType={handleTypeChange}
-                  onDelete={() => deleteBlock.mutate({ noteId, blockId: block.id })}
-                  isBusy={deleteBlock.isPending || updateBlock.isPending}
-                />
-              </div>
-
-              <textarea
-                ref={(node) => {
-                  blockRefs.current[block.id] = node;
-                  resizeTextarea(node);
-                }}
-                value={text}
-                onFocus={() => setActiveBlock(noteId, block.id)}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                placeholder={block.type === "heading" ? "Heading" : "Write something..."}
-                rows={1}
-                className={`w-full resize-none bg-transparent text-stone-900 transition-colors outline-none ${
-                  isHeading(block.type) ? "text-lg font-semibold" : "text-sm leading-6"
-                }`}
-              />
-            </div>
-          );
-        })}
+        {blocks.map((block, index) => (
+          <EditorBlock
+            key={block.id}
+            noteId={noteId}
+            block={block}
+            prevBlock={index > 0 ? blocks[index - 1] : null}
+            index={index}
+            total={blocks.length}
+            isActive={activeBlockId === block.id}
+            resizeTextarea={resizeTextarea}
+            setBlockRef={setBlockRef}
+            setActiveBlock={setActiveBlock}
+            setDraftText={setDraftText}
+            clearDraft={clearDraft}
+            setPendingFocus={setPendingFocus}
+            updateBlock={updateBlock}
+            splitBlock={splitBlock}
+            mergeBlocks={mergeBlocks}
+            deleteBlock={deleteBlock}
+            reorderBlocks={reorderBlocks}
+            handleMove={handleMove}
+          />
+        ))}
       </section>
+    </div>
+  );
+}
+
+type EditorBlockProps = {
+  noteId: string;
+  block: NoteBlock;
+  prevBlock: NoteBlock | null;
+  index: number;
+  total: number;
+  isActive: boolean;
+  resizeTextarea: (node: HTMLTextAreaElement | null) => void;
+  setBlockRef: (blockId: string, node: HTMLTextAreaElement | null) => void;
+  setActiveBlock: (noteId: string, blockId: string | null) => void;
+  setDraftText: (noteId: string, blockId: string, text: string) => void;
+  clearDraft: (noteId: string, blockId: string) => void;
+  setPendingFocus: React.Dispatch<
+    React.SetStateAction<{ id: string; selectionStart: number; selectionEnd: number } | null>
+  >;
+  updateBlock: ReturnType<typeof useUpdateBlock>;
+  splitBlock: ReturnType<typeof useSplitBlock>;
+  mergeBlocks: ReturnType<typeof useMergeBlocks>;
+  deleteBlock: ReturnType<typeof useDeleteBlock>;
+  reorderBlocks: ReturnType<typeof useReorderBlocks>;
+  handleMove: (blockId: string, direction: "up" | "down") => void;
+};
+
+function EditorBlock({
+  noteId,
+  block,
+  prevBlock,
+  index,
+  total,
+  isActive,
+  resizeTextarea,
+  setBlockRef,
+  setActiveBlock,
+  setDraftText,
+  clearDraft,
+  setPendingFocus,
+  updateBlock,
+  splitBlock,
+  mergeBlocks,
+  deleteBlock,
+  reorderBlocks,
+  handleMove,
+}: EditorBlockProps) {
+  const draft = useEditorStore(selectDraftForBlock(noteId, block.id));
+  const text = draft?.text ?? getBlockText(block);
+  const isTop = index === 0;
+  const isBottom = index === total - 1;
+
+  React.useEffect(() => {
+    if (!draft) return;
+    const baseText = getBlockText(block);
+    if (normalizeDraftText(draft.text) === normalizeDraftText(baseText)) {
+      clearDraft(noteId, block.id);
+    }
+  }, [block, clearDraft, draft, noteId]);
+
+  const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextText = event.target.value;
+    resizeTextarea(event.currentTarget);
+    setDraftText(noteId, block.id, nextText);
+    updateBlock.updateBlock({
+      noteId,
+      blockId: block.id,
+      contentJson: { text: nextText },
+      plainText: nextText,
+    });
+  };
+
+  const handleBlur = () => {
+    updateBlock.flush(block.id);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      const originalText = text;
+      const selectionStart = event.currentTarget.selectionStart ?? text.length;
+      const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart;
+      const before = text.slice(0, selectionStart);
+      const after = text.slice(selectionEnd);
+
+      updateBlock.cancel(block.id);
+      setDraftText(noteId, block.id, before);
+      splitBlock.mutate(
+        {
+          noteId,
+          blockId: block.id,
+          beforeText: before,
+          afterText: after,
+        },
+        {
+          onSuccess: (data) => {
+            setActiveBlock(noteId, data.newBlock.id);
+            setPendingFocus({
+              id: data.newBlock.id,
+              selectionStart: 0,
+              selectionEnd: 0,
+            });
+          },
+          onError: () => {
+            setDraftText(noteId, block.id, originalText);
+            setActiveBlock(noteId, block.id);
+            setPendingFocus({
+              id: block.id,
+              selectionStart,
+              selectionEnd: selectionStart,
+            });
+          },
+        },
+      );
+      return;
+    }
+
+    if (event.key === "Backspace") {
+      const selectionStart = event.currentTarget.selectionStart ?? 0;
+      const selectionEnd = event.currentTarget.selectionEnd ?? 0;
+      if (selectionStart !== 0 || selectionEnd !== 0) return;
+      if (index === 0) return;
+
+      event.preventDefault();
+      if (!prevBlock) return;
+      const prevDraft = useEditorStore.getState().byNoteId[noteId]?.draftsByBlockId[prevBlock.id];
+      const prevText = prevDraft?.text ?? getBlockText(prevBlock);
+      const currentText = text;
+      const merged = `${prevText}${currentText}`;
+
+      updateBlock.cancel(prevBlock.id);
+      updateBlock.cancel(block.id);
+      setDraftText(noteId, prevBlock.id, merged);
+      mergeBlocks.mutate(
+        {
+          noteId,
+          prevBlockId: prevBlock.id,
+          currentBlockId: block.id,
+          mergedText: merged,
+        },
+        {
+          onSuccess: () => {
+            clearDraft(noteId, block.id);
+            setActiveBlock(noteId, prevBlock.id);
+            const caretPosition = prevText.length;
+            setPendingFocus({
+              id: prevBlock.id,
+              selectionStart: caretPosition,
+              selectionEnd: caretPosition,
+            });
+          },
+          onError: () => {
+            setDraftText(noteId, prevBlock.id, prevText);
+            setDraftText(noteId, block.id, currentText);
+            setActiveBlock(noteId, block.id);
+            setPendingFocus({
+              id: block.id,
+              selectionStart: 0,
+              selectionEnd: 0,
+            });
+          },
+        },
+      );
+    }
+  };
+
+  const handleTypeChange = (nextType: BlockType) => {
+    if (block.type === nextType) return;
+    updateBlock.updateBlock({
+      noteId,
+      blockId: block.id,
+      type: nextType,
+    });
+    updateBlock.flush(block.id);
+  };
+
+  return (
+    <div
+      data-editor-block="true"
+      className={`group relative rounded-lg border px-3 py-2 transition-colors ${
+        isActive
+          ? "border-stone-400 bg-white shadow-xs"
+          : "border-transparent hover:border-stone-200"
+      }`}
+    >
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => handleMove(block.id, "up")}
+          disabled={isTop || reorderBlocks.isPending}
+          aria-label="Move block up"
+        >
+          <ChevronUp size={14} />
+        </button>
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => handleMove(block.id, "down")}
+          disabled={isBottom || reorderBlocks.isPending}
+          aria-label="Move block down"
+        >
+          <ChevronDown size={14} />
+        </button>
+        <BlockActions
+          block={block}
+          onChangeType={handleTypeChange}
+          onDelete={() => deleteBlock.mutate({ noteId, blockId: block.id })}
+          isBusy={
+            deleteBlock.isPending ||
+            updateBlock.isPending ||
+            splitBlock.isPending ||
+            mergeBlocks.isPending
+          }
+        />
+      </div>
+
+      <textarea
+        ref={(node) => {
+          setBlockRef(block.id, node);
+        }}
+        value={text}
+        onFocus={() => setActiveBlock(noteId, block.id)}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder={block.type === "heading" ? "Heading" : "Write something..."}
+        rows={1}
+        className={`w-full resize-none bg-transparent text-stone-900 transition-colors outline-none ${
+          isHeading(block.type) ? "text-lg font-semibold" : "text-sm leading-6"
+        }`}
+      />
     </div>
   );
 }

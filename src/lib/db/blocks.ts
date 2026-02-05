@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "./drizzle";
 import { blocks, notes } from "./schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/errors";
 
@@ -154,6 +154,202 @@ export async function updateBlock(input: {
     });
 
     return Ok({ block: result });
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function splitBlock(input: {
+  userId: string;
+  blockId: string;
+  beforeText: string;
+  afterText: string;
+}) {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const existing = await tx
+        .select(selectBlock)
+        .from(blocks)
+        .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
+
+      const block = existing[0];
+      if (!block) throw Errors.BLOCK_NOT_FOUND(input.blockId);
+
+      const countRows = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(blocks)
+        .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, block.noteId)));
+
+      const total = Number(countRows[0]?.count ?? 0);
+      const insertPosition = Math.min(block.position + 1, total);
+
+      const updated = await tx
+        .update(blocks)
+        .set({
+          contentJson: { text: input.beforeText },
+          plainText: input.beforeText,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)))
+        .returning(selectBlock);
+
+      if (!updated[0]) throw Errors.DB_ERROR();
+
+      if (insertPosition < total) {
+        const tempOffset = 1_000_000;
+        await tx
+          .update(blocks)
+          .set({ position: sql`${blocks.position} + ${tempOffset}` })
+          .where(
+            and(
+              eq(blocks.userId, input.userId),
+              eq(blocks.noteId, block.noteId),
+              sql`${blocks.position} >= ${insertPosition}`,
+            ),
+          );
+
+        const inserted = await tx
+          .insert(blocks)
+          .values({
+            userId: input.userId,
+            noteId: block.noteId,
+            type: block.type,
+            position: insertPosition,
+            contentJson: { text: input.afterText },
+            plainText: input.afterText,
+          })
+          .returning(selectBlock);
+
+        if (!inserted[0]) throw Errors.DB_ERROR();
+
+        await tx
+          .update(blocks)
+          .set({ position: sql`${blocks.position} - ${tempOffset} + 1` })
+          .where(
+            and(
+              eq(blocks.userId, input.userId),
+              eq(blocks.noteId, block.noteId),
+              sql`${blocks.position} >= ${tempOffset + insertPosition}`,
+            ),
+          );
+
+        return { block: updated[0] as BlockRow, newBlock: inserted[0] as BlockRow };
+      }
+
+      const inserted = await tx
+        .insert(blocks)
+        .values({
+          userId: input.userId,
+          noteId: block.noteId,
+          type: block.type,
+          position: insertPosition,
+          contentJson: { text: input.afterText },
+          plainText: input.afterText,
+        })
+        .returning(selectBlock);
+
+      if (!inserted[0]) throw Errors.DB_ERROR();
+
+      return { block: updated[0] as BlockRow, newBlock: inserted[0] as BlockRow };
+    });
+
+    return Ok(result);
+  } catch (e) {
+    if (isAppError(e) && e.code !== "DB_ERROR") {
+      return Err(e);
+    }
+    return Err(Errors.DB_ERROR());
+  }
+}
+
+export async function mergeBlocks(input: {
+  userId: string;
+  prevBlockId: string;
+  currentBlockId: string;
+  mergedText: string;
+}) {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const existing = await tx
+        .select(selectBlock)
+        .from(blocks)
+        .where(
+          and(
+            eq(blocks.userId, input.userId),
+            inArray(blocks.id, [input.prevBlockId, input.currentBlockId]),
+          ),
+        );
+
+      const prev = existing.find((row) => row.id === input.prevBlockId);
+      const current = existing.find((row) => row.id === input.currentBlockId);
+
+      if (!prev) throw Errors.BLOCK_NOT_FOUND(input.prevBlockId);
+      if (!current) throw Errors.BLOCK_NOT_FOUND(input.currentBlockId);
+      if (prev.noteId !== current.noteId) {
+        throw Errors.VALIDATION_ERROR([
+          {
+            code: "custom",
+            message: "Blocks must belong to the same note",
+            path: ["currentBlockId"],
+          },
+        ]);
+      }
+      if (prev.position >= current.position) {
+        throw Errors.VALIDATION_ERROR([
+          {
+            code: "custom",
+            message: "prevBlockId must be before currentBlockId",
+            path: ["prevBlockId"],
+          },
+        ]);
+      }
+
+      const updated = await tx
+        .update(blocks)
+        .set({
+          contentJson: { text: input.mergedText },
+          plainText: input.mergedText,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(blocks.userId, input.userId), eq(blocks.id, prev.id)))
+        .returning(selectBlock);
+
+      if (!updated[0]) throw Errors.DB_ERROR();
+
+      await tx
+        .delete(blocks)
+        .where(and(eq(blocks.userId, input.userId), eq(blocks.id, current.id)));
+
+      const tempOffset = 1_000_000;
+      await tx
+        .update(blocks)
+        .set({ position: sql`${blocks.position} + ${tempOffset}` })
+        .where(
+          and(
+            eq(blocks.userId, input.userId),
+            eq(blocks.noteId, current.noteId),
+            sql`${blocks.position} > ${current.position}`,
+          ),
+        );
+
+      await tx
+        .update(blocks)
+        .set({ position: sql`${blocks.position} - ${tempOffset} - 1` })
+        .where(
+          and(
+            eq(blocks.userId, input.userId),
+            eq(blocks.noteId, current.noteId),
+            sql`${blocks.position} >= ${tempOffset + current.position + 1}`,
+          ),
+        );
+
+      return { block: updated[0] as BlockRow };
+    });
+
+    return Ok(result);
   } catch (e) {
     if (isAppError(e) && e.code !== "DB_ERROR") {
       return Err(e);
