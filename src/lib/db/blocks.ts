@@ -53,9 +53,10 @@ export async function createBlock(input: {
       const clampedPosition = Math.max(0, Math.min(input.position, total));
 
       if (clampedPosition < total) {
+        const tempOffset = 1_000_000;
         await tx
           .update(blocks)
-          .set({ position: sql`${blocks.position} + 1` })
+          .set({ position: sql`${blocks.position} + ${tempOffset}` })
           .where(
             and(
               eq(blocks.userId, input.userId),
@@ -63,6 +64,33 @@ export async function createBlock(input: {
               sql`${blocks.position} >= ${clampedPosition}`,
             ),
           );
+
+        const inserted = await tx
+          .insert(blocks)
+          .values({
+            userId: input.userId,
+            noteId: input.noteId,
+            type: input.type,
+            position: clampedPosition,
+            contentJson: input.contentJson ?? {},
+            plainText: input.plainText ?? "",
+          })
+          .returning(selectBlock);
+
+        if (!inserted[0]) throw Errors.DB_ERROR();
+
+        await tx
+          .update(blocks)
+          .set({ position: sql`${blocks.position} - ${tempOffset} + 1` })
+          .where(
+            and(
+              eq(blocks.userId, input.userId),
+              eq(blocks.noteId, input.noteId),
+              sql`${blocks.position} >= ${tempOffset + clampedPosition}`,
+            ),
+          );
+
+        return inserted[0] as BlockRow;
       }
 
       const inserted = await tx
@@ -149,14 +177,26 @@ export async function deleteBlock(input: { userId: string; blockId: string }) {
         .delete(blocks)
         .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
 
+      const tempOffset = 1_000_000;
       await tx
         .update(blocks)
-        .set({ position: sql`${blocks.position} - 1` })
+        .set({ position: sql`${blocks.position} + ${tempOffset}` })
         .where(
           and(
             eq(blocks.userId, input.userId),
             eq(blocks.noteId, block.noteId),
             sql`${blocks.position} > ${block.position}`,
+          ),
+        );
+
+      await tx
+        .update(blocks)
+        .set({ position: sql`${blocks.position} - ${tempOffset} - 1` })
+        .where(
+          and(
+            eq(blocks.userId, input.userId),
+            eq(blocks.noteId, block.noteId),
+            sql`${blocks.position} >= ${tempOffset + block.position + 1}`,
           ),
         );
     });

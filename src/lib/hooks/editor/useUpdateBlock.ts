@@ -111,6 +111,14 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
     if (payload) mutate(payload);
   }, [mutate]);
 
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    pendingRef.current = null;
+  }, []);
+
   useEffect(
     () => () => {
       if (timeoutRef.current) {
@@ -124,5 +132,6 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
     ...mutation,
     updateBlock: updateBlockDebounced,
     flush,
+    cancel,
   };
 }

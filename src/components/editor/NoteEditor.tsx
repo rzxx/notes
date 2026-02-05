@@ -224,20 +224,14 @@ export function NoteEditor({ noteId }: { noteId: string }) {
           const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
+              const originalText = text;
               const selectionStart = event.currentTarget.selectionStart ?? text.length;
               const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart;
               const before = text.slice(0, selectionStart);
               const after = text.slice(selectionEnd);
 
+              updateBlock.cancel();
               setDraftText(noteId, block.id, before);
-              updateBlock.updateBlock({
-                noteId,
-                blockId: block.id,
-                contentJson: { text: before },
-                plainText: before,
-              });
-              updateBlock.flush();
-
               createBlock.mutate(
                 {
                   noteId,
@@ -248,11 +242,40 @@ export function NoteEditor({ noteId }: { noteId: string }) {
                 },
                 {
                   onSuccess: (data) => {
+                    updateBlock.mutate(
+                      {
+                        noteId,
+                        blockId: block.id,
+                        contentJson: { text: before },
+                        plainText: before,
+                      },
+                      {
+                        onError: () => {
+                          setDraftText(noteId, block.id, originalText);
+                          deleteBlock.mutate({ noteId, blockId: data.block.id });
+                          setActiveBlock(noteId, block.id);
+                          setPendingFocus({
+                            id: block.id,
+                            selectionStart,
+                            selectionEnd: selectionStart,
+                          });
+                        },
+                      },
+                    );
                     setActiveBlock(noteId, data.block.id);
                     setPendingFocus({
                       id: data.block.id,
                       selectionStart: 0,
                       selectionEnd: 0,
+                    });
+                  },
+                  onError: () => {
+                    setDraftText(noteId, block.id, originalText);
+                    setActiveBlock(noteId, block.id);
+                    setPendingFocus({
+                      id: block.id,
+                      selectionStart,
+                      selectionEnd: selectionStart,
                     });
                   },
                 },
@@ -269,26 +292,62 @@ export function NoteEditor({ noteId }: { noteId: string }) {
               event.preventDefault();
               const prevBlock = blocks[index - 1];
               const prevText = draftsByBlockId[prevBlock.id]?.text ?? getBlockText(prevBlock);
-              const merged = `${prevText}${text}`;
+              const currentText = text;
+              const merged = `${prevText}${currentText}`;
 
+              updateBlock.cancel();
               setDraftText(noteId, prevBlock.id, merged);
-              updateBlock.updateBlock({
-                noteId,
-                blockId: prevBlock.id,
-                contentJson: { text: merged },
-                plainText: merged,
-              });
-              updateBlock.flush();
+              updateBlock.mutate(
+                {
+                  noteId,
+                  blockId: prevBlock.id,
+                  contentJson: { text: merged },
+                  plainText: merged,
+                },
+                {
+                  onSuccess: () => {
+                    clearDraft(noteId, block.id);
+                    deleteBlock.mutate(
+                      { noteId, blockId: block.id },
+                      {
+                        onError: () => {
+                          setDraftText(noteId, prevBlock.id, prevText);
+                          setDraftText(noteId, block.id, currentText);
+                          updateBlock.mutate({
+                            noteId,
+                            blockId: prevBlock.id,
+                            contentJson: { text: prevText },
+                            plainText: prevText,
+                          });
+                          setActiveBlock(noteId, block.id);
+                          setPendingFocus({
+                            id: block.id,
+                            selectionStart: 0,
+                            selectionEnd: 0,
+                          });
+                        },
+                      },
+                    );
 
-              clearDraft(noteId, block.id);
-              deleteBlock.mutate({ noteId, blockId: block.id });
-              setActiveBlock(noteId, prevBlock.id);
-              const caretPosition = prevText.length;
-              setPendingFocus({
-                id: prevBlock.id,
-                selectionStart: caretPosition,
-                selectionEnd: caretPosition,
-              });
+                    setActiveBlock(noteId, prevBlock.id);
+                    const caretPosition = prevText.length;
+                    setPendingFocus({
+                      id: prevBlock.id,
+                      selectionStart: caretPosition,
+                      selectionEnd: caretPosition,
+                    });
+                  },
+                  onError: () => {
+                    setDraftText(noteId, prevBlock.id, prevText);
+                    setActiveBlock(noteId, block.id);
+                    setPendingFocus({
+                      id: block.id,
+                      selectionStart: 0,
+                      selectionEnd: 0,
+                    });
+                  },
+                },
+              );
             }
           };
 
