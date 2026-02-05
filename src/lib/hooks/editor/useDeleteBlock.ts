@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteDetailResponse } from "@/lib/hooks/editor/types";
+import { normalizeBlockPositions, removeBlockById } from "@/lib/editor/block-list";
 
 type DeleteBlockInput = {
   noteId: string;
@@ -37,8 +38,8 @@ export function useDeleteBlock() {
       const previous = queryClient.getQueryData<NoteDetailResponse>(key);
       if (!previous) return { previous: null } as const;
 
-      const remaining = previous.blocks.filter((block) => block.id !== variables.blockId);
-      const normalized = remaining.map((block, index) => ({ ...block, position: index }));
+      const remaining = removeBlockById(previous.blocks, variables.blockId);
+      const normalized = normalizeBlockPositions(remaining);
       queryClient.setQueryData<NoteDetailResponse>(key, { ...previous, blocks: normalized });
 
       return { previous } as const;

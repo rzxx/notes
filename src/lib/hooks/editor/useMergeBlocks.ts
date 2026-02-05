@@ -4,6 +4,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteDetailResponse, NoteBlock } from "@/lib/hooks/editor/types";
+import {
+  normalizeBlockPositions,
+  removeBlockById,
+  replaceBlockById,
+} from "@/lib/editor/block-list";
 
 type MergeBlocksInput = {
   noteId: string;
@@ -49,19 +54,15 @@ export function useMergeBlocks() {
       if (!prev || !current) return { previous } as const;
 
       const now = new Date().toISOString();
-      const updatedBlocks = previous.blocks.map((block) =>
-        block.id === variables.prevBlockId
-          ? {
-              ...block,
-              contentJson: { text: variables.mergedText },
-              plainText: variables.mergedText,
-              updatedAt: now,
-            }
-          : block,
-      );
+      const updatedBlocks = replaceBlockById(previous.blocks, variables.prevBlockId, {
+        ...prev,
+        contentJson: { text: variables.mergedText },
+        plainText: variables.mergedText,
+        updatedAt: now,
+      });
 
-      const remaining = updatedBlocks.filter((block) => block.id !== variables.currentBlockId);
-      const normalized = remaining.map((block, index) => ({ ...block, position: index }));
+      const remaining = removeBlockById(updatedBlocks, variables.currentBlockId);
+      const normalized = normalizeBlockPositions(remaining);
       queryClient.setQueryData<NoteDetailResponse>(key, { ...previous, blocks: normalized });
 
       return { previous } as const;

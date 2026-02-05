@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
+import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
 
 type SplitBlockInput = {
   noteId: string;
@@ -25,18 +26,6 @@ export const makeTempId = () =>
       ? crypto.randomUUID()
       : Math.random().toString(16).slice(2)
   }`;
-
-const sortBlocks = (blocks: NoteBlock[]) =>
-  [...blocks].sort((a, b) =>
-    a.position !== b.position ? a.position - b.position : a.id.localeCompare(b.id),
-  );
-
-const insertBlockAt = (blocks: NoteBlock[], newBlock: NoteBlock, position: number) => {
-  const ordered = sortBlocks(blocks);
-  const clamped = Math.max(0, Math.min(position, ordered.length));
-  ordered.splice(clamped, 0, { ...newBlock, position: clamped });
-  return ordered.map((block, index) => ({ ...block, position: index }));
-};
 
 async function splitBlock(input: SplitBlockInput) {
   const result = await fetchResult<SplitBlockResponse>("/api/blocks/split", {
@@ -104,11 +93,10 @@ export function useSplitBlock() {
       const key = queryKeys.notes.detail(variables.noteId);
       queryClient.setQueryData<NoteDetailResponse>(key, (current) => {
         if (!current) return current;
-        const replaced = current.blocks.map((block) => {
-          if (block.id === data.block.id) return data.block;
-          if (context?.tempId && block.id === context.tempId) return data.newBlock;
-          return block;
-        });
+        let replaced = replaceBlockById(current.blocks, data.block.id, data.block);
+        if (context?.tempId) {
+          replaced = replaceBlockById(replaced, context.tempId, data.newBlock);
+        }
         return { ...current, blocks: sortBlocks(replaced) };
       });
     },

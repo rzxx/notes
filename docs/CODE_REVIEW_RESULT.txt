@@ -1,0 +1,24 @@
+What’s good
+- Clear separation of concerns: UI in src/components/editor/NoteEditor.tsx, mutations in src/lib/hooks/editor/*, persistence in src/lib/db/blocks.ts.
+- Strong optimistic updates and rollback paths in mutations; the flow is coherent across create/split/merge/reorder/update.
+- Server-side position management is safe and transactional, with unique constraint protection (src/lib/db/blocks.ts, src/lib/db/schema.ts).
+- Temp-id handling + promotion is thoughtful and mostly correct (src/lib/hooks/editor/useUpdateBlock.ts + split/create hooks).
+- Block model already supports more types even if UI only exposes two; good forward compatibility (src/lib/db/validators.ts).
+Bugs / correctness risks
+- Unsaved edits can be lost on unmount. useUpdateBlock cancels debounced edits in its cleanup and doesn’t flush, and NoteEditor clears drafts on unmount. If the user navigates away while a debounce is pending, the last typed content never reaches the server. This is the highest-risk bug. Fix by flushing pending updates on unmount or before clearNote. (src/lib/hooks/editor/useUpdateBlock.ts, src/components/editor/NoteEditor.tsx)
+- Deleting the active block leaves stale active state. If the active block is deleted via menu, activeBlockId stays set to a now-missing block. This can cause confusing focus/blur behavior and stale styling. Consider clearing or moving focus on delete success. (src/components/editor/NoteEditor.tsx, src/lib/hooks/editor/useDeleteBlock.ts)
+- Auto-insert retry gap. If the initial “insert empty block” fails once, it won’t retry for that note because autoInsertedRef is set. That can strand an empty note forever in this session. (src/components/editor/NoteEditor.tsx)
+Architecture / scalability concerns (not blockers for MVP)
+- Position as dense integer means inserts/reorders touch many rows. It’s OK for MVP, but if you expect long notes or frequent reorders, consider a rank/lexorank-style ordering for blocks (like you already do for notes). (src/lib/db/blocks.ts)
+- Content model is too loose. contentJson is unknown everywhere and only assumed to contain { text }. You’ll accumulate debt fast once you add richer blocks. Consider shared Zod schemas per block type to keep client/server aligned. (src/lib/db/validators.ts, src/components/editor/NoteEditor.tsx)
+- Duped block-list logic (sort/insert/normalize) appears in multiple hooks (useCreateBlock, useSplitBlock, plus editor). A shared utility or “block list reducer” would reduce bugs when you add more operations.
+UX / behavior gaps (still OK for MVP, but likely next pain)
+- No keyboard navigation between blocks (ArrowUp/ArrowDown), no slash commands, no selection across blocks. Not needed for MVP, but your current architecture won’t prevent adding these.
+- Editing is still controlled by local drafts and a debounced mutation. That works, but without a “dirty / syncing” status, users can’t tell if changes are saved.
+- Global updateBlock.isPending disables actions across all blocks while any update is in-flight. This can feel laggy in practice.
+Suggested refactor ideas (only if you want to invest)
+1. Centralize optimistic block-list transforms (create/split/merge/reorder/update) into a single helper or reducer to avoid drift across hooks.
+2. Introduce a shared BlockContent schema (Zod) and use it in validators.ts, API routes, and editor rendering.
+3. Add a small “editor session” layer (maybe a hook) that owns focus, draft text, and mutation orchestration so the NoteEditor component isn’t doing everything.
+Does it pass MVP?
+Yes — structurally it’s fine for MVP. The one issue that should be fixed immediately is the potential data loss on unmount. That’s the main thing that can become tech debt if ignored.

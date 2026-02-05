@@ -12,6 +12,7 @@ import { useReorderBlocks } from "@/lib/hooks/editor/useReorderBlocks";
 import { makeTempId as makeSplitTempId, useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
 import { useUpdateBlock } from "@/lib/hooks/editor/useUpdateBlock";
 import type { NoteBlock } from "@/lib/hooks/editor/types";
+import { sortBlocks } from "@/lib/editor/block-list";
 import { selectActiveBlockId, selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
 
 type BlockTextContent = {
@@ -19,11 +20,6 @@ type BlockTextContent = {
 };
 
 type BlockType = "paragraph" | "heading";
-
-const sortBlocks = (blocks: NoteBlock[]) =>
-  [...blocks].sort((a, b) =>
-    a.position !== b.position ? a.position - b.position : a.id.localeCompare(b.id),
-  );
 
 const getBlockText = (block: NoteBlock) => {
   if (!block.contentJson || typeof block.contentJson !== "object") return block.plainText ?? "";

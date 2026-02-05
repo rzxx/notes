@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
+import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
 
 type CreateBlockInput = {
   noteId: string;
@@ -24,18 +25,6 @@ const makeTempId = () =>
       ? crypto.randomUUID()
       : Math.random().toString(16).slice(2)
   }`;
-
-const sortBlocks = (blocks: NoteBlock[]) =>
-  [...blocks].sort((a, b) =>
-    a.position !== b.position ? a.position - b.position : a.id.localeCompare(b.id),
-  );
-
-const insertBlockAt = (blocks: NoteBlock[], newBlock: NoteBlock, position: number) => {
-  const ordered = sortBlocks(blocks);
-  const clamped = Math.max(0, Math.min(position, ordered.length));
-  ordered.splice(clamped, 0, { ...newBlock, position: clamped });
-  return ordered.map((block, index) => ({ ...block, position: index }));
-};
 
 async function createBlock(input: CreateBlockInput) {
   const result = await fetchResult<CreateBlockResponse>("/api/blocks", {
@@ -92,9 +81,7 @@ export function useCreateBlock() {
       const key = queryKeys.notes.detail(variables.noteId);
       queryClient.setQueryData<NoteDetailResponse>(key, (current) => {
         if (!current) return current;
-        const replaced = current.blocks.map((block) =>
-          block.id === context.tempId ? data.block : block,
-        );
+        const replaced = replaceBlockById(current.blocks, context.tempId, data.block);
         return { ...current, blocks: sortBlocks(replaced) };
       });
     },
