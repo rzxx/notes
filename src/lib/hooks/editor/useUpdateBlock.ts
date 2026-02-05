@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
+import { useEditorStore } from "@/lib/stores/editor";
 
 type UpdateBlockInput = {
   noteId: string;
@@ -43,6 +44,10 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   const debounceMs = options?.debounceMs ?? 350;
   const timeoutRef = useRef(new Map<string, number>());
   const pendingRef = useRef(new Map<string, UpdateBlockInput>());
+  const tempMapRef = useRef(new Map<string, string>());
+
+  const isTempId = (id: string) => id.startsWith("temp-");
+  const resolveBlockId = (id: string) => tempMapRef.current.get(id) ?? id;
 
   const mutation = useMutation({
     mutationFn: updateBlock,
@@ -88,16 +93,28 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
 
   const updateBlockDebounced = useCallback(
     (input: UpdateBlockInput) => {
-      pendingRef.current.set(input.blockId, input);
-      const existing = timeoutRef.current.get(input.blockId);
+      const resolvedId = resolveBlockId(input.blockId);
+      if (isTempId(resolvedId)) {
+        pendingRef.current.set(input.blockId, input);
+        return;
+      }
+
+      const payload = resolvedId === input.blockId ? input : { ...input, blockId: resolvedId };
+      pendingRef.current.set(payload.blockId, payload);
+      const existing = timeoutRef.current.get(payload.blockId);
       if (existing) window.clearTimeout(existing);
       const timeoutId = window.setTimeout(() => {
-        const payload = pendingRef.current.get(input.blockId);
-        pendingRef.current.delete(input.blockId);
-        timeoutRef.current.delete(input.blockId);
-        if (payload) mutate(payload);
+        const pending = pendingRef.current.get(payload.blockId);
+        pendingRef.current.delete(payload.blockId);
+        timeoutRef.current.delete(payload.blockId);
+        if (!pending) return;
+        if (isTempId(resolveBlockId(pending.blockId))) {
+          pendingRef.current.set(pending.blockId, pending);
+          return;
+        }
+        mutate({ ...pending, blockId: resolveBlockId(pending.blockId) });
       }, debounceMs);
-      timeoutRef.current.set(input.blockId, timeoutId);
+      timeoutRef.current.set(payload.blockId, timeoutId);
     },
     [debounceMs, mutate],
   );
@@ -105,11 +122,13 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   const flush = useCallback(
     (blockId?: string) => {
       if (blockId) {
-        const timeoutId = timeoutRef.current.get(blockId);
+        const resolvedId = resolveBlockId(blockId);
+        if (isTempId(resolvedId)) return;
+        const timeoutId = timeoutRef.current.get(resolvedId);
         if (timeoutId) window.clearTimeout(timeoutId);
-        timeoutRef.current.delete(blockId);
-        const payload = pendingRef.current.get(blockId);
-        pendingRef.current.delete(blockId);
+        timeoutRef.current.delete(resolvedId);
+        const payload = pendingRef.current.get(resolvedId);
+        pendingRef.current.delete(resolvedId);
         if (payload) mutate(payload);
         return;
       }
@@ -119,7 +138,9 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
       }
       timeoutRef.current.clear();
       for (const payload of pendingRef.current.values()) {
-        mutate(payload);
+        if (!isTempId(resolveBlockId(payload.blockId))) {
+          mutate({ ...payload, blockId: resolveBlockId(payload.blockId) });
+        }
       }
       pendingRef.current.clear();
     },
@@ -128,10 +149,12 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
 
   const cancel = useCallback((blockId?: string) => {
     if (blockId) {
-      const timeoutId = timeoutRef.current.get(blockId);
+      const resolvedId = resolveBlockId(blockId);
+      const timeoutId = timeoutRef.current.get(resolvedId);
       if (timeoutId) window.clearTimeout(timeoutId);
-      timeoutRef.current.delete(blockId);
+      timeoutRef.current.delete(resolvedId);
       pendingRef.current.delete(blockId);
+      pendingRef.current.delete(resolvedId);
       return;
     }
 
@@ -153,10 +176,40 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
     [],
   );
 
+  const promoteTempId = useCallback(
+    (noteId: string, tempId: string, nextId: string) => {
+      tempMapRef.current.set(tempId, nextId);
+      const state = useEditorStore.getState();
+      const draft = state.byNoteId[noteId]?.draftsByBlockId[tempId];
+      const pending = pendingRef.current.get(tempId);
+      pendingRef.current.delete(tempId);
+
+      if (draft) {
+        state.setDraftText(noteId, nextId, draft.text);
+        state.clearDraft(noteId, tempId);
+      }
+
+      const payload = pending
+        ? { ...pending, blockId: nextId }
+        : draft
+          ? {
+              noteId,
+              blockId: nextId,
+              contentJson: { text: draft.text },
+              plainText: draft.text,
+            }
+          : null;
+
+      if (payload) mutate(payload);
+    },
+    [mutate],
+  );
+
   return {
     ...mutation,
     updateBlock: updateBlockDebounced,
     flush,
     cancel,
+    promoteTempId,
   };
 }

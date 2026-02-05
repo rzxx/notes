@@ -35,8 +35,6 @@ const normalizeDraftText = (value: string) => value.replace(/\r\n/g, "\n");
 
 const isHeading = (type: string) => type === "heading";
 
-const isTempId = (id: string) => id.startsWith("temp-");
-
 export function NoteEditor({ noteId }: { noteId: string }) {
   const noteQuery = useNote(noteId);
   const createBlock = useCreateBlock();
@@ -71,23 +69,6 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     return { selectionStart, selectionEnd };
   }, []);
 
-  const promoteTempDraft = React.useCallback(
-    (tempId: string, nextId: string) => {
-      const draft = useEditorStore.getState().byNoteId[noteId]?.draftsByBlockId[tempId];
-      if (!draft) return;
-      setDraftText(noteId, nextId, draft.text);
-      clearDraft(noteId, tempId);
-      updateBlock.updateBlock({
-        noteId,
-        blockId: nextId,
-        contentJson: { text: draft.text },
-        plainText: draft.text,
-      });
-      updateBlock.flush(nextId);
-    },
-    [clearDraft, noteId, setDraftText, updateBlock],
-  );
-
   React.useEffect(() => () => clearNote(noteId), [clearNote, noteId]);
 
   React.useEffect(() => {
@@ -107,11 +88,11 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       {
         onSuccess: (data, _variables, context) => {
           if (!context?.tempId) return;
-          promoteTempDraft(context.tempId, data.block.id);
+          updateBlock.promoteTempId(noteId, context.tempId, data.block.id);
         },
       },
     );
-  }, [createBlock, noteId, noteQuery.data, promoteTempDraft]);
+  }, [createBlock, noteId, noteQuery.data, updateBlock]);
 
   React.useEffect(() => {
     if (!pendingFocus) return;
@@ -248,7 +229,6 @@ export function NoteEditor({ noteId }: { noteId: string }) {
             clearDraft={clearDraft}
             setPendingFocus={setPendingFocus}
             getBlockSelection={getBlockSelection}
-            promoteTempDraft={promoteTempDraft}
             updateBlock={updateBlock}
             splitBlock={splitBlock}
             mergeBlocks={mergeBlocks}
@@ -278,7 +258,6 @@ type EditorBlockProps = {
     React.SetStateAction<{ id: string; selectionStart: number; selectionEnd: number } | null>
   >;
   getBlockSelection: (blockId: string) => { selectionStart: number; selectionEnd: number } | null;
-  promoteTempDraft: (tempId: string, nextId: string) => void;
   updateBlock: ReturnType<typeof useUpdateBlock>;
   splitBlock: ReturnType<typeof useSplitBlock>;
   mergeBlocks: ReturnType<typeof useMergeBlocks>;
@@ -301,7 +280,6 @@ function EditorBlock({
   clearDraft,
   setPendingFocus,
   getBlockSelection,
-  promoteTempDraft,
   updateBlock,
   splitBlock,
   mergeBlocks,
@@ -326,7 +304,6 @@ function EditorBlock({
     const nextText = event.target.value;
     resizeTextarea(event.currentTarget);
     setDraftText(noteId, block.id, nextText);
-    if (isTempId(block.id)) return;
     updateBlock.updateBlock({
       noteId,
       blockId: block.id,
@@ -336,7 +313,6 @@ function EditorBlock({
   };
 
   const handleBlur = () => {
-    if (isTempId(block.id)) return;
     updateBlock.flush(block.id);
   };
 
@@ -370,7 +346,7 @@ function EditorBlock({
           onSuccess: (data, _variables, context) => {
             const selection = context?.tempId ? getBlockSelection(context.tempId) : null;
             if (context?.tempId) {
-              promoteTempDraft(context.tempId, data.newBlock.id);
+              updateBlock.promoteTempId(noteId, context.tempId, data.newBlock.id);
             }
             setActiveBlock(noteId, data.newBlock.id);
             setPendingFocus({
@@ -444,7 +420,6 @@ function EditorBlock({
 
   const handleTypeChange = (nextType: BlockType) => {
     if (block.type === nextType) return;
-    if (isTempId(block.id)) return;
     updateBlock.updateBlock({
       noteId,
       blockId: block.id,

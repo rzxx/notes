@@ -38,12 +38,16 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
    - Optimistically update `queryKeys.notes.detail(noteId)` and normalize positions.
    - `useUpdateBlock` merges server response into the cache on success (no invalidate).
    - `useUpdateBlock` uses a debounced `updateBlock` plus `flush()` for blur/enter.
+   - `useUpdateBlock` centralizes temp-id handling via `promoteTempId(noteId, tempId, nextId)`:
+     - Queues updates for temp ids and replays on promotion.
+     - Transfers drafts from temp id to real id and persists text once.
 
 4. Editor UI
    - Replaced the note page placeholder with a client editor (`src/components/editor/NoteEditor.tsx`).
    - Renders flat blocks with `<textarea>` inputs, debounced updates, Enter split, Backspace merge.
    - Added up/down buttons for reorder (drag later).
    - Uses Base UI Menu for block actions and Dialog for delete confirmation.
+   - On split/create success, calls `updateBlock.promoteTempId(...)` and preserves caret selection.
 
 ## Zustand Store Ideas (Editor)
 
@@ -66,3 +70,5 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
   - Reorder validates full coverage and uses a temporary offset to avoid unique collisions.
 - Reorder expects `orderedBlockIds` to include all blocks for the note; partial lists are rejected.
 - Client hooks create temp IDs on optimistic insert and replace on success.
+  - Temp-id updates no longer hit `/api/blocks/:id` (avoids UUID validation errors).
+  - Caret is preserved by capturing selection on the temp block and reapplying when the real id arrives.
