@@ -39,20 +39,21 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
    - `useUpdateBlock` uses a debounced `updateBlock` plus `flush()` for blur/enter.
 
 4. Editor UI
-   - Replace the note page placeholder with a client editor.
-   - Render blocks, allow typing, split/merge with Enter/Backspace.
-   - Add up/down controls for reorder (drag later).
+   - Replaced the note page placeholder with a client editor (`src/components/editor/NoteEditor.tsx`).
+   - Renders flat blocks with `<textarea>` inputs, debounced updates, Enter split, Backspace merge.
+   - Added up/down buttons for reorder (drag later).
+   - Uses Base UI Menu for block actions and Dialog for delete confirmation.
 
 ## Zustand Store Ideas (Editor)
 
 - Keep server state (blocks list) in TanStack Query; keep only UI state in Zustand.
-- Suggested shape: `byNoteId[noteId] = { activeBlockId, selection, draftsByBlockId }`.
-- Drafts are optional: keep `{ text, dirtyAt, lastSyncedAt }` per block, then flush on debounce/blur.
-- Minimal actions: `setActiveBlock`, `setDraftText`, `clearDraft`, `flushDrafts(noteId)`.
+- Implemented `src/lib/stores/editor.ts` with `byNoteId[noteId] = { activeBlockId, draftsByBlockId }`.
+- Drafts are stored per block as `{ text, dirtyAt, lastSyncedAt }`.
+- Actions implemented: `setActiveBlock`, `setDraftText`, `clearDraft`, `clearNote`.
 
 ## Optional Safety Rails
 
-- If note has zero blocks, auto-insert one empty paragraph on load.
+- If note has zero blocks, auto-insert one empty paragraph on load. (Implemented in `NoteEditor`.)
 - Keep update and reorder operations idempotent to support retries.
 
 ## Important Notes
