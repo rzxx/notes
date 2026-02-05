@@ -13,6 +13,10 @@ const APP_ERROR_MESSAGES: Partial<Record<AppErrorCode, ToastMessage>> = {
     title: "Note not found",
     description: "This note no longer exists or you do not have access.",
   },
+  BLOCK_NOT_FOUND: {
+    title: "Block not found",
+    description: "This block no longer exists or you do not have access.",
+  },
   FORBIDDEN: {
     title: "Action not allowed",
     description: "You do not have permission to do that.",

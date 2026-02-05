@@ -33,6 +33,10 @@ export const noteIdParamSchema = z.object({
   id: z.uuid(),
 });
 
+export const blockIdParamSchema = z.object({
+  id: z.uuid(),
+});
+
 export const updateNoteSchema = z.object({
   title: noteTitleSchema,
 });
@@ -54,6 +58,18 @@ export const createBlockSchema = z.object({
   contentJson: z.unknown().optional(), // tighten later per type
   plainText: z.string().optional(),
 });
+
+export const updateBlockSchema = z
+  .object({
+    type: blockTypeSchema.optional(),
+    contentJson: z.unknown().optional(),
+    plainText: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      data.type !== undefined || data.contentJson !== undefined || data.plainText !== undefined,
+    { message: "At least one field is required" },
+  );
 
 export const reorderBlocksSchema = z.object({
   noteId: z.uuid(),

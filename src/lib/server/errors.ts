@@ -10,6 +10,7 @@ type HttpErrorMeta = {
 // Internal mapping of errors to HTTP responses.
 const ERROR_HTTP_MAP = {
   NOTE_NOT_FOUND: { status: 404 },
+  BLOCK_NOT_FOUND: { status: 404 },
   FORBIDDEN: { status: 403 },
   DB_ERROR: { status: 500 },
   VALIDATION_ERROR: { status: 400 },
