@@ -36,6 +36,7 @@ Ship a first editor that can load, edit, and reorder flat blocks (paragraph/head
      - `useCreateBlock`, `useUpdateBlock`, `useDeleteBlock`, `useReorderBlocks`.
      - Shared types in `src/lib/hooks/editor/types.ts` (used by `useNote`).
    - Optimistically update `queryKeys.notes.detail(noteId)` and normalize positions.
+   - `useUpdateBlock` merges server response into the cache on success (no invalidate).
    - `useUpdateBlock` uses a debounced `updateBlock` plus `flush()` for blur/enter.
 
 4. Editor UI
