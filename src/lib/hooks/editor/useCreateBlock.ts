@@ -4,13 +4,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
+import type { BlockContent, BlockType } from "@/lib/editor/block-content";
 import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
 
 type CreateBlockInput = {
   noteId: string;
-  type: string;
+  type: BlockType;
   position: number;
-  contentJson?: unknown;
+  contentJson?: BlockContent;
   plainText?: string;
 };
 

@@ -12,20 +12,16 @@ import { useReorderBlocks } from "@/lib/hooks/editor/useReorderBlocks";
 import { makeTempId as makeSplitTempId, useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
 import { useUpdateBlock } from "@/lib/hooks/editor/useUpdateBlock";
 import type { NoteBlock } from "@/lib/hooks/editor/types";
+import { getBlockTextFromContent, type BlockType } from "@/lib/editor/block-content";
 import { sortBlocks } from "@/lib/editor/block-list";
 import { selectActiveBlockId, selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
 
-type BlockTextContent = {
-  text?: string;
-};
-
-type BlockType = "paragraph" | "heading";
-
-const getBlockText = (block: NoteBlock) => {
-  if (!block.contentJson || typeof block.contentJson !== "object") return block.plainText ?? "";
-  const maybe = block.contentJson as BlockTextContent;
-  return typeof maybe.text === "string" ? maybe.text : (block.plainText ?? "");
-};
+const getBlockText = (block: NoteBlock) =>
+  getBlockTextFromContent({
+    type: block.type,
+    contentJson: block.contentJson,
+    plainText: block.plainText,
+  });
 
 const normalizeDraftText = (value: string) => value.replace(/\r\n/g, "\n");
 

@@ -6,11 +6,13 @@ export type NoteDetail = {
   updatedAt: string;
 };
 
+import type { BlockContent, BlockType } from "@/lib/editor/block-content";
+
 export type NoteBlock = {
   id: string;
-  type: string;
+  type: BlockType;
   position: number;
-  contentJson: unknown;
+  contentJson: BlockContent;
   plainText: string;
   createdAt: string;
   updatedAt: string;

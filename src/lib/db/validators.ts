@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  blockContentSchema,
+  blockContentSchemaByType,
+  blockTypeSchema,
+  type BlockType,
+} from "@/lib/editor/block-content";
+
+export { blockTypeSchema };
 
 export const noteTitleSchema = z.string().trim().min(1).max(200);
 
@@ -41,23 +49,30 @@ export const updateNoteSchema = z.object({
   title: noteTitleSchema,
 });
 
-export const blockTypeSchema = z.enum([
-  "paragraph",
-  "heading",
-  "bulleted_list_item",
-  "numbered_list_item",
-  "todo",
-  "quote",
-  "code",
-]);
+const addContentIssues = (
+  ctx: z.RefinementCtx,
+  issues: z.ZodIssue[],
+  path: (string | number)[] = ["contentJson"],
+) => {
+  for (const issue of issues) {
+    ctx.addIssue({ ...issue, path: [...path, ...issue.path] });
+  }
+};
 
-export const createBlockSchema = z.object({
-  noteId: z.uuid(),
-  type: blockTypeSchema,
-  position: z.number().int().min(0),
-  contentJson: z.unknown().optional(), // tighten later per type
-  plainText: z.string().optional(),
-});
+export const createBlockSchema = z
+  .object({
+    noteId: z.uuid(),
+    type: blockTypeSchema,
+    position: z.number().int().min(0),
+    contentJson: z.unknown().optional(),
+    plainText: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.contentJson === undefined) return;
+    const schema = blockContentSchemaByType[data.type as BlockType];
+    const parsed = schema.safeParse(data.contentJson);
+    if (!parsed.success) addContentIssues(ctx, parsed.error.issues);
+  });
 
 export const updateBlockSchema = z
   .object({
@@ -69,7 +84,19 @@ export const updateBlockSchema = z
     (data) =>
       data.type !== undefined || data.contentJson !== undefined || data.plainText !== undefined,
     { message: "At least one field is required" },
-  );
+  )
+  .superRefine((data, ctx) => {
+    if (data.contentJson === undefined) return;
+    if (data.type) {
+      const schema = blockContentSchemaByType[data.type as BlockType];
+      const parsed = schema.safeParse(data.contentJson);
+      if (!parsed.success) addContentIssues(ctx, parsed.error.issues);
+      return;
+    }
+
+    const parsed = blockContentSchema.safeParse(data.contentJson);
+    if (!parsed.success) addContentIssues(ctx, parsed.error.issues);
+  });
 
 export const reorderBlocksSchema = z.object({
   noteId: z.uuid(),
