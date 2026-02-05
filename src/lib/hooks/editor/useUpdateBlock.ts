@@ -72,8 +72,15 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
       if (!context?.previous) return;
       queryClient.setQueryData(queryKeys.notes.detail(variables.noteId), context.previous);
     },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
+    onSuccess: (data, variables) => {
+      const key = queryKeys.notes.detail(variables.noteId);
+      queryClient.setQueryData<NoteDetailResponse>(key, (current) => {
+        if (!current) return current;
+        const blocks = current.blocks.map((block) =>
+          block.id === data.block.id ? data.block : block,
+        );
+        return { ...current, blocks };
+      });
     },
   });
 

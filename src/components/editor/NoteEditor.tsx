@@ -47,7 +47,12 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const clearNote = useEditorStore((state) => state.clearNote);
 
   const blockRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
-  const [pendingFocusId, setPendingFocusId] = React.useState<string | null>(null);
+  const editorRef = React.useRef<HTMLDivElement | null>(null);
+  const [pendingFocus, setPendingFocus] = React.useState<{
+    id: string;
+    selectionStart: number;
+    selectionEnd: number;
+  } | null>(null);
   const autoInsertedRef = React.useRef<Record<string, boolean>>({});
 
   const blocks = React.useMemo(() => sortBlocks(noteQuery.data?.blocks ?? []), [noteQuery.data]);
@@ -83,13 +88,72 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   }, [clearDraft, draftsByBlockId, noteId, noteQuery.data]);
 
   React.useEffect(() => {
-    if (!pendingFocusId) return;
-    const target = blockRefs.current[pendingFocusId];
+    if (!pendingFocus) return;
+    const target = blockRefs.current[pendingFocus.id];
     if (!target) return;
     target.focus();
-    target.setSelectionRange(0, 0);
-    setPendingFocusId(null);
-  }, [pendingFocusId, blocks]);
+    target.setSelectionRange(pendingFocus.selectionStart, pendingFocus.selectionEnd);
+    setPendingFocus(null);
+  }, [pendingFocus, blocks]);
+
+  const resizeTextarea = React.useCallback((node: HTMLTextAreaElement | null) => {
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = `${node.scrollHeight}px`;
+  }, []);
+
+  const resizeAllTextareas = React.useCallback(() => {
+    blocks.forEach((block) => resizeTextarea(blockRefs.current[block.id]));
+  }, [blocks, resizeTextarea]);
+
+  React.useLayoutEffect(() => {
+    resizeAllTextareas();
+  }, [blocks, draftsByBlockId, resizeAllTextareas]);
+
+  React.useEffect(() => {
+    const handleResize = () => resizeAllTextareas();
+    window.addEventListener("resize", handleResize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", handleResize);
+    }
+
+    const observer = new ResizeObserver(() => resizeAllTextareas());
+    if (editorRef.current) observer.observe(editorRef.current);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
+    };
+  }, [resizeAllTextareas]);
+
+  const handleBackgroundMouseDown = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-editor-block='true']")) return;
+      const active = activeBlockId ? blockRefs.current[activeBlockId] : null;
+      active?.blur();
+      setActiveBlock(noteId, null);
+    },
+    [activeBlockId, noteId, setActiveBlock],
+  );
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (editorRef.current?.contains(target)) return;
+      if (target.closest("[data-editor-surface='true']")) return;
+      if (!activeBlockId) return;
+      const active = blockRefs.current[activeBlockId];
+      active?.blur();
+      setActiveBlock(noteId, null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, { capture: true });
+    return () => window.removeEventListener("pointerdown", handlePointerDown, { capture: true });
+  }, [activeBlockId, noteId, setActiveBlock]);
 
   const handleMove = React.useCallback(
     (blockId: string, direction: "up" | "down") => {
@@ -122,7 +186,12 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      ref={editorRef}
+      data-editor-surface="true"
+      className="space-y-4"
+      onMouseDown={handleBackgroundMouseDown}
+    >
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-stone-900">{noteQuery.data.note.title}</h1>
         <p className="text-xs text-stone-500">{noteQuery.data.note.id}</p>
@@ -138,6 +207,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
 
           const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
             const nextText = event.target.value;
+            resizeTextarea(event.currentTarget);
             setDraftText(noteId, block.id, nextText);
             updateBlock.updateBlock({
               noteId,
@@ -179,7 +249,11 @@ export function NoteEditor({ noteId }: { noteId: string }) {
                 {
                   onSuccess: (data) => {
                     setActiveBlock(noteId, data.block.id);
-                    setPendingFocusId(data.block.id);
+                    setPendingFocus({
+                      id: data.block.id,
+                      selectionStart: 0,
+                      selectionEnd: 0,
+                    });
                   },
                 },
               );
@@ -209,7 +283,12 @@ export function NoteEditor({ noteId }: { noteId: string }) {
               clearDraft(noteId, block.id);
               deleteBlock.mutate({ noteId, blockId: block.id });
               setActiveBlock(noteId, prevBlock.id);
-              setPendingFocusId(prevBlock.id);
+              const caretPosition = prevText.length;
+              setPendingFocus({
+                id: prevBlock.id,
+                selectionStart: caretPosition,
+                selectionEnd: caretPosition,
+              });
             }
           };
 
@@ -226,6 +305,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
           return (
             <div
               key={block.id}
+              data-editor-block="true"
               className={`group relative rounded-lg border px-3 py-2 transition-colors ${
                 isActive
                   ? "border-stone-400 bg-white shadow-xs"
@@ -262,6 +342,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
               <textarea
                 ref={(node) => {
                   blockRefs.current[block.id] = node;
+                  resizeTextarea(node);
                 }}
                 value={text}
                 onFocus={() => setActiveBlock(noteId, block.id)}
@@ -303,7 +384,10 @@ function BlockActions({
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner sideOffset={10} side="right">
-            <Menu.Popup className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-2 starting-or-ending:scale-95 rounded-lg border border-stone-200 bg-stone-50 p-2 shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out">
+            <Menu.Popup
+              data-editor-surface="true"
+              className="starting-or-ending:opacity-0 starting-or-ending:-translate-x-2 starting-or-ending:scale-95 rounded-lg border border-stone-200 bg-stone-50 p-2 shadow-lg transition-[opacity,translate,scale] duration-150 ease-in-out"
+            >
               <div className="mb-1 px-2 py-1 text-xs font-medium text-stone-500">Block</div>
               <Menu.Item
                 onClick={() => onChangeType("paragraph")}
@@ -336,7 +420,10 @@ function BlockActions({
       <Dialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
         <Dialog.Portal>
           <Dialog.Backdrop className="starting-or-ending:opacity-0 fixed inset-0 bg-black/25 opacity-100 backdrop-blur-xs transition-opacity duration-150 ease-in-out" />
-          <Dialog.Popup className="starting-or-ending:opacity-0 starting-or-ending:scale-95 fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-stone-200 bg-stone-50 p-6 shadow-xl transition-[scale,opacity] duration-150 ease-out">
+          <Dialog.Popup
+            data-editor-surface="true"
+            className="starting-or-ending:opacity-0 starting-or-ending:scale-95 fixed top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-stone-200 bg-stone-50 p-6 shadow-xl transition-[scale,opacity] duration-150 ease-out"
+          >
             <Dialog.Title className="mb-2 text-lg font-semibold text-stone-800">
               Delete block?
             </Dialog.Title>
