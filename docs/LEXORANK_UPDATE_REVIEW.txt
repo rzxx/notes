@@ -1,0 +1,46 @@
+I went through the LexoRank migration carefully (DB layer, API routes, editor hooks/store, and optimistic client logic), and I also sanity-checked rank behavior with quick runtime probes.
+Overall verdict
+- Blocks migration is mostly solid and much safer now than the first pass, especially with automatic rebuild on rank exhaustion.
+- Notes logic is still fragile under rank exhaustion and can fail in real use (especially repeated “move to top” style operations).
+Findings (highest impact first)
+- High: Notes do not auto-recover from rank exhaustion, unlike blocks.
+  - src/lib/db/notes.ts:141 uses rankBetween/rankBefore in deleteNote without fallback.
+  - src/lib/db/notes.ts:386 uses rankBetween in moveNote without fallback.
+  - I verified rank space near the lower bound exhausts quickly (U -> E -> 6 -> 2 -> 0, then exhaustion), so this is not theoretical.
+- Medium: Rank-rebuild logic is duplicated several times in blocks DB code, making flow harder to follow and maintain.
+  - src/lib/db/blocks.ts:64
+  - src/lib/db/blocks.ts:202
+  - src/lib/db/blocks.ts:513
+  - src/lib/db/blocks.ts:618
+- Medium: Notes unique rank constraint likely does not protect root siblings (because parent_id is nullable in PG unique indexes).
+  - src/lib/db/schema.ts:38
+  - This can allow duplicate root ranks under concurrency; several note queries compare with gt/lt rank only, so tie handling can become inconsistent.
+- Low: Temp ID generator logic is duplicated.
+  - src/lib/hooks/editor/useCreateBlock.ts:23
+  - src/lib/hooks/editor/useSplitBlock.ts:23
+- Low: rebuild-ranks blocks endpoint appears internal/manual and unused by app code.
+  - src/app/api/blocks/rebuild-ranks/route.ts:1
+What looks good
+- Blocks now handle RANK_EXHAUSTED in create/split/reorder with rebuild + retry:
+  - src/lib/db/blocks.ts:82
+  - src/lib/db/blocks.ts:224
+  - src/lib/db/blocks.ts:576
+- Client optimistic block ordering also handles exhaustion and rebuild in-memory:
+  - src/lib/editor/block-list.ts:45
+  - src/lib/editor/block-list.ts:102
+- Block rank migration shape is coherent, and note detail now returns/uses rank for blocks:
+  - src/lib/db/notes.ts:617
+  - src/lib/db/notes.ts:625
+Implementation score
+- Blocks: 8.5/10
+- Notes: 6.5/10
+- Overall for “LexoRank in blocks and correctness for both blocks+notes”: 7.5/10
+Suggested fixes
+1. Add the same rebuild-and-retry strategy to notes moveNote and deleteNote (server-side, transaction-safe).
+2. Extract shared rank maintenance helpers (compute bounds, rebuild, retry-on-exhaustion) to reduce duplication in src/lib/db/blocks.ts.
+3. Add a root partial unique index for notes rank (WHERE parent_id IS NULL) to mirror title handling and avoid root tie anomalies.
+4. Optionally centralize makeTempId into a shared utility.
+Verification I ran
+- bun lint (no lint errors shown)
+- bun typecheck (no type errors shown)
+- bun test (no test files in repo)
