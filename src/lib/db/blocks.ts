@@ -4,6 +4,7 @@ import { blocks, notes } from "./schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Err, Ok } from "@/lib/result";
 import { Errors, isAppError } from "@/lib/errors";
+import { buildTextBlockContent } from "@/lib/editor/block-content";
 
 type BlockRow = {
   id: string;
@@ -178,6 +179,18 @@ export async function splitBlock(input: {
       const block = existing[0];
       if (!block) throw Errors.BLOCK_NOT_FOUND(input.blockId);
 
+      const beforeContent = buildTextBlockContent({
+        type: block.type,
+        text: input.beforeText,
+      });
+      if (!beforeContent.ok) throw beforeContent.error;
+
+      const afterContent = buildTextBlockContent({
+        type: block.type,
+        text: input.afterText,
+      });
+      if (!afterContent.ok) throw afterContent.error;
+
       const countRows = await tx
         .select({ count: sql<number>`count(*)` })
         .from(blocks)
@@ -189,7 +202,7 @@ export async function splitBlock(input: {
       const updated = await tx
         .update(blocks)
         .set({
-          contentJson: { text: input.beforeText },
+          contentJson: beforeContent.value,
           plainText: input.beforeText,
           updatedAt: new Date(),
         })
@@ -218,7 +231,7 @@ export async function splitBlock(input: {
             noteId: block.noteId,
             type: block.type,
             position: insertPosition,
-            contentJson: { text: input.afterText },
+            contentJson: afterContent.value,
             plainText: input.afterText,
           })
           .returning(selectBlock);
@@ -246,7 +259,7 @@ export async function splitBlock(input: {
           noteId: block.noteId,
           type: block.type,
           position: insertPosition,
-          contentJson: { text: input.afterText },
+          contentJson: afterContent.value,
           plainText: input.afterText,
         })
         .returning(selectBlock);
@@ -307,10 +320,16 @@ export async function mergeBlocks(input: {
         ]);
       }
 
+      const mergedContent = buildTextBlockContent({
+        type: prev.type,
+        text: input.mergedText,
+      });
+      if (!mergedContent.ok) throw mergedContent.error;
+
       const updated = await tx
         .update(blocks)
         .set({
-          contentJson: { text: input.mergedText },
+          contentJson: mergedContent.value,
           plainText: input.mergedText,
           updatedAt: new Date(),
         })
