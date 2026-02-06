@@ -168,13 +168,9 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
 
   useEffect(
     () => () => {
-      for (const timeoutId of timeoutRef.current.values()) {
-        window.clearTimeout(timeoutId);
-      }
-      timeoutRef.current.clear();
-      pendingRef.current.clear();
+      flush();
     },
-    [],
+    [flush],
   );
 
   const promoteTempId = useCallback(

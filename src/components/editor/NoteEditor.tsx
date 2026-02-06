@@ -10,11 +10,12 @@ import { useDeleteBlock } from "@/lib/hooks/editor/useDeleteBlock";
 import { useMergeBlocks } from "@/lib/hooks/editor/useMergeBlocks";
 import { useReorderBlocks } from "@/lib/hooks/editor/useReorderBlocks";
 import { makeTempId as makeSplitTempId, useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
+import { useEditorSession } from "@/lib/hooks/editor/useEditorSession";
 import { useUpdateBlock } from "@/lib/hooks/editor/useUpdateBlock";
 import type { NoteBlock } from "@/lib/hooks/editor/types";
 import { getBlockTextFromContent, type BlockType } from "@/lib/editor/block-content";
 import { sortBlocks } from "@/lib/editor/block-list";
-import { selectActiveBlockId, selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
+import { selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
 
 const getBlockText = (block: NoteBlock) =>
   getBlockTextFromContent({
@@ -36,20 +37,21 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const splitBlock = useSplitBlock();
   const updateBlock = useUpdateBlock();
 
-  const activeBlockId = useEditorStore(selectActiveBlockId(noteId));
-  const setActiveBlock = useEditorStore((state) => state.setActiveBlock);
-  const setDraftText = useEditorStore((state) => state.setDraftText);
-  const clearDraft = useEditorStore((state) => state.clearDraft);
-  const clearNote = useEditorStore((state) => state.clearNote);
+  const {
+    activeBlockId,
+    setActiveBlock,
+    setDraftText,
+    clearDraft,
+    pendingFocus,
+    queueFocus,
+    clearPendingFocus,
+    flushBlock,
+    cancelBlock,
+  } = useEditorSession({ noteId, updateBlock });
 
   const blockRefs = React.useRef<Record<string, HTMLTextAreaElement | null>>({});
   const editorRef = React.useRef<HTMLDivElement | null>(null);
-  const [pendingFocus, setPendingFocus] = React.useState<{
-    id: string;
-    selectionStart: number;
-    selectionEnd: number;
-  } | null>(null);
-  const autoInsertedRef = React.useRef<Record<string, boolean>>({});
+  const autoInsertStateRef = React.useRef<Record<string, "idle" | "pending" | "succeeded">>({});
 
   const blocks = React.useMemo(() => sortBlocks(noteQuery.data?.blocks ?? []), [noteQuery.data]);
 
@@ -61,14 +63,13 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     return { selectionStart, selectionEnd };
   }, []);
 
-  React.useEffect(() => () => clearNote(noteId), [clearNote, noteId]);
-
   React.useEffect(() => {
     if (!noteQuery.data) return;
     if ((noteQuery.data.blocks?.length ?? 0) > 0) return;
-    if (autoInsertedRef.current[noteId]) return;
+    const autoInsertState = autoInsertStateRef.current[noteId] ?? "idle";
+    if (autoInsertState === "pending" || autoInsertState === "succeeded") return;
 
-    autoInsertedRef.current[noteId] = true;
+    autoInsertStateRef.current[noteId] = "pending";
     createBlock.mutate(
       {
         noteId,
@@ -79,8 +80,12 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       },
       {
         onSuccess: (data, _variables, context) => {
+          autoInsertStateRef.current[noteId] = "succeeded";
           if (!context?.tempId) return;
           updateBlock.promoteTempId(noteId, context.tempId, data.block.id);
+        },
+        onError: () => {
+          autoInsertStateRef.current[noteId] = "idle";
         },
       },
     );
@@ -92,8 +97,8 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     if (!target) return;
     target.focus();
     target.setSelectionRange(pendingFocus.selectionStart, pendingFocus.selectionEnd);
-    setPendingFocus(null);
-  }, [pendingFocus, blocks]);
+    clearPendingFocus();
+  }, [clearPendingFocus, pendingFocus, blocks]);
 
   const resizeTextarea = React.useCallback((node: HTMLTextAreaElement | null) => {
     if (!node) return;
@@ -141,9 +146,9 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       if (target.closest("[data-editor-block='true']")) return;
       const active = activeBlockId ? blockRefs.current[activeBlockId] : null;
       active?.blur();
-      setActiveBlock(noteId, null);
+      setActiveBlock(null);
     },
-    [activeBlockId, noteId, setActiveBlock],
+    [activeBlockId, setActiveBlock],
   );
 
   React.useEffect(() => {
@@ -155,12 +160,34 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       if (!activeBlockId) return;
       const active = blockRefs.current[activeBlockId];
       active?.blur();
-      setActiveBlock(noteId, null);
+      setActiveBlock(null);
     };
 
     window.addEventListener("pointerdown", handlePointerDown, { capture: true });
     return () => window.removeEventListener("pointerdown", handlePointerDown, { capture: true });
-  }, [activeBlockId, noteId, setActiveBlock]);
+  }, [activeBlockId, setActiveBlock]);
+
+  const handleDeleteBlock = React.useCallback(
+    (blockId: string) => {
+      const deletedIndex = blocks.findIndex((block) => block.id === blockId);
+      const fallbackBlock =
+        deletedIndex >= 0 ? (blocks[deletedIndex + 1] ?? blocks[deletedIndex - 1] ?? null) : null;
+      const fallbackBlockId = fallbackBlock?.id ?? null;
+
+      deleteBlock.mutate(
+        { noteId, blockId },
+        {
+          onSuccess: () => {
+            if (activeBlockId !== blockId) return;
+            setActiveBlock(fallbackBlockId);
+            if (!fallbackBlockId) return;
+            queueFocus({ id: fallbackBlockId, selectionStart: 0, selectionEnd: 0 });
+          },
+        },
+      );
+    },
+    [activeBlockId, blocks, deleteBlock, noteId, queueFocus, setActiveBlock],
+  );
 
   const handleMove = React.useCallback(
     (blockId: string, direction: "up" | "down") => {
@@ -219,13 +246,16 @@ export function NoteEditor({ noteId }: { noteId: string }) {
             setActiveBlock={setActiveBlock}
             setDraftText={setDraftText}
             clearDraft={clearDraft}
-            setPendingFocus={setPendingFocus}
+            setPendingFocus={queueFocus}
             getBlockSelection={getBlockSelection}
             updateBlock={updateBlock}
             splitBlock={splitBlock}
             mergeBlocks={mergeBlocks}
             deleteBlock={deleteBlock}
+            onDeleteBlock={handleDeleteBlock}
             reorderBlocks={reorderBlocks}
+            flushBlock={flushBlock}
+            cancelBlock={cancelBlock}
             handleMove={handleMove}
           />
         ))}
@@ -243,18 +273,21 @@ type EditorBlockProps = {
   isActive: boolean;
   resizeTextarea: (node: HTMLTextAreaElement | null) => void;
   setBlockRef: (blockId: string, node: HTMLTextAreaElement | null) => void;
-  setActiveBlock: (noteId: string, blockId: string | null) => void;
-  setDraftText: (noteId: string, blockId: string, text: string) => void;
-  clearDraft: (noteId: string, blockId: string) => void;
-  setPendingFocus: React.Dispatch<
-    React.SetStateAction<{ id: string; selectionStart: number; selectionEnd: number } | null>
-  >;
+  setActiveBlock: (blockId: string | null) => void;
+  setDraftText: (blockId: string, text: string) => void;
+  clearDraft: (blockId: string) => void;
+  setPendingFocus: (
+    target: { id: string; selectionStart: number; selectionEnd: number } | null,
+  ) => void;
   getBlockSelection: (blockId: string) => { selectionStart: number; selectionEnd: number } | null;
   updateBlock: ReturnType<typeof useUpdateBlock>;
   splitBlock: ReturnType<typeof useSplitBlock>;
   mergeBlocks: ReturnType<typeof useMergeBlocks>;
   deleteBlock: ReturnType<typeof useDeleteBlock>;
+  onDeleteBlock: (blockId: string) => void;
   reorderBlocks: ReturnType<typeof useReorderBlocks>;
+  flushBlock: (blockId: string) => void;
+  cancelBlock: (blockId: string) => void;
   handleMove: (blockId: string, direction: "up" | "down") => void;
 };
 
@@ -276,7 +309,10 @@ function EditorBlock({
   splitBlock,
   mergeBlocks,
   deleteBlock,
+  onDeleteBlock,
   reorderBlocks,
+  flushBlock,
+  cancelBlock,
   handleMove,
 }: EditorBlockProps) {
   const draft = useEditorStore(selectDraftForBlock(noteId, block.id));
@@ -288,14 +324,14 @@ function EditorBlock({
     if (!draft) return;
     const baseText = getBlockText(block);
     if (normalizeDraftText(draft.text) === normalizeDraftText(baseText)) {
-      clearDraft(noteId, block.id);
+      clearDraft(block.id);
     }
   }, [block, clearDraft, draft, noteId]);
 
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextText = event.target.value;
     resizeTextarea(event.currentTarget);
-    setDraftText(noteId, block.id, nextText);
+    setDraftText(block.id, nextText);
     updateBlock.updateBlock({
       noteId,
       blockId: block.id,
@@ -305,7 +341,7 @@ function EditorBlock({
   };
 
   const handleBlur = () => {
-    updateBlock.flush(block.id);
+    flushBlock(block.id);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -317,10 +353,10 @@ function EditorBlock({
       const before = text.slice(0, selectionStart);
       const after = text.slice(selectionEnd);
 
-      updateBlock.cancel(block.id);
-      setDraftText(noteId, block.id, before);
+      cancelBlock(block.id);
+      setDraftText(block.id, before);
       const tempId = makeSplitTempId();
-      setActiveBlock(noteId, tempId);
+      setActiveBlock(tempId);
       setPendingFocus({
         id: tempId,
         selectionStart: 0,
@@ -340,7 +376,7 @@ function EditorBlock({
             if (context?.tempId) {
               updateBlock.promoteTempId(noteId, context.tempId, data.newBlock.id);
             }
-            setActiveBlock(noteId, data.newBlock.id);
+            setActiveBlock(data.newBlock.id);
             setPendingFocus({
               id: data.newBlock.id,
               selectionStart: selection?.selectionStart ?? 0,
@@ -348,8 +384,8 @@ function EditorBlock({
             });
           },
           onError: () => {
-            setDraftText(noteId, block.id, originalText);
-            setActiveBlock(noteId, block.id);
+            setDraftText(block.id, originalText);
+            setActiveBlock(block.id);
             setPendingFocus({
               id: block.id,
               selectionStart,
@@ -374,9 +410,9 @@ function EditorBlock({
       const currentText = text;
       const merged = `${prevText}${currentText}`;
 
-      updateBlock.cancel(prevBlock.id);
-      updateBlock.cancel(block.id);
-      setDraftText(noteId, prevBlock.id, merged);
+      cancelBlock(prevBlock.id);
+      cancelBlock(block.id);
+      setDraftText(prevBlock.id, merged);
       mergeBlocks.mutate(
         {
           noteId,
@@ -386,8 +422,8 @@ function EditorBlock({
         },
         {
           onSuccess: () => {
-            clearDraft(noteId, block.id);
-            setActiveBlock(noteId, prevBlock.id);
+            clearDraft(block.id);
+            setActiveBlock(prevBlock.id);
             const caretPosition = prevText.length;
             setPendingFocus({
               id: prevBlock.id,
@@ -396,9 +432,9 @@ function EditorBlock({
             });
           },
           onError: () => {
-            setDraftText(noteId, prevBlock.id, prevText);
-            setDraftText(noteId, block.id, currentText);
-            setActiveBlock(noteId, block.id);
+            setDraftText(prevBlock.id, prevText);
+            setDraftText(block.id, currentText);
+            setActiveBlock(block.id);
             setPendingFocus({
               id: block.id,
               selectionStart: 0,
@@ -417,7 +453,7 @@ function EditorBlock({
       blockId: block.id,
       type: nextType,
     });
-    updateBlock.flush(block.id);
+    flushBlock(block.id);
   };
 
   return (
@@ -451,7 +487,7 @@ function EditorBlock({
         <BlockActions
           block={block}
           onChangeType={handleTypeChange}
-          onDelete={() => deleteBlock.mutate({ noteId, blockId: block.id })}
+          onDelete={() => onDeleteBlock(block.id)}
           isBusy={
             deleteBlock.isPending ||
             updateBlock.isPending ||
@@ -466,7 +502,7 @@ function EditorBlock({
           setBlockRef(block.id, node);
         }}
         value={text}
-        onFocus={() => setActiveBlock(noteId, block.id)}
+        onFocus={() => setActiveBlock(block.id)}
         onChange={handleChange}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
