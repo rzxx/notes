@@ -561,8 +561,8 @@ function EditorBlock({
   return (
     <div
       data-editor-block="true"
-      className={`group relative rounded-md px-2 py-1.5 transition-colors ${
-        isActive ? "bg-stone-100 ring-1 ring-stone-200/90" : "bg-transparent hover:bg-stone-100/75"
+      className={`group relative px-2 py-1 transition-colors ${
+        isActive ? "bg-stone-100" : "bg-transparent hover:bg-stone-100/75"
       }`}
     >
       <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -609,7 +609,7 @@ function EditorBlock({
         placeholder={block.type === "heading" ? "Heading" : "Write something..."}
         rows={1}
         style={isHeading(block.type) ? undefined : { lineHeight: paragraphLineHeight }}
-        className={`w-full resize-none bg-transparent pr-24 text-stone-900 transition-colors outline-none ${
+        className={`w-full resize-none bg-transparent p-0 pr-24 text-stone-900 transition-colors outline-none ${
           isHeading(block.type) ? "text-lg font-semibold" : "text-[15px]"
         }`}
       />
