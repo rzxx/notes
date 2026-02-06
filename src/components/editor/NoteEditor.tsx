@@ -173,20 +173,28 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       const fallbackBlock =
         deletedIndex >= 0 ? (blocks[deletedIndex + 1] ?? blocks[deletedIndex - 1] ?? null) : null;
       const fallbackBlockId = fallbackBlock?.id ?? null;
+      const currentActiveId = useEditorStore.getState().byNoteId[noteId]?.activeBlockId ?? null;
+      const wasActiveBlock = currentActiveId === blockId;
+
+      if (wasActiveBlock) {
+        setActiveBlock(fallbackBlockId);
+        if (fallbackBlockId) {
+          queueFocus({ id: fallbackBlockId, selectionStart: 0, selectionEnd: 0 });
+        }
+      }
 
       deleteBlock.mutate(
         { noteId, blockId },
         {
-          onSuccess: () => {
-            if (activeBlockId !== blockId) return;
-            setActiveBlock(fallbackBlockId);
-            if (!fallbackBlockId) return;
-            queueFocus({ id: fallbackBlockId, selectionStart: 0, selectionEnd: 0 });
+          onError: () => {
+            if (!wasActiveBlock) return;
+            setActiveBlock(blockId);
+            queueFocus({ id: blockId, selectionStart: 0, selectionEnd: 0 });
           },
         },
       );
     },
-    [activeBlockId, blocks, deleteBlock, noteId, queueFocus, setActiveBlock],
+    [blocks, deleteBlock, noteId, queueFocus, setActiveBlock],
   );
 
   const handleMove = React.useCallback(

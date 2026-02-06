@@ -15,6 +15,8 @@ export function useEditorSession(params: {
   updateBlock: ReturnType<typeof useUpdateBlock>;
 }) {
   const { noteId, updateBlock } = params;
+  const flushAllBlocks = updateBlock.flush;
+  const cancelPendingBlock = updateBlock.cancel;
   const activeBlockId = useEditorStore(selectActiveBlockId(noteId));
 
   const setActiveBlockStore = useEditorStore((state) => state.setActiveBlock);
@@ -55,24 +57,24 @@ export function useEditorSession(params: {
 
   const flushBlock = React.useCallback(
     (blockId: string) => {
-      updateBlock.flush(blockId);
+      flushAllBlocks(blockId);
     },
-    [updateBlock],
+    [flushAllBlocks],
   );
 
   const cancelBlock = React.useCallback(
     (blockId: string) => {
-      updateBlock.cancel(blockId);
+      cancelPendingBlock(blockId);
     },
-    [updateBlock],
+    [cancelPendingBlock],
   );
 
   React.useEffect(
     () => () => {
-      updateBlock.flush();
+      flushAllBlocks();
       clearNoteStore(noteId);
     },
-    [clearNoteStore, noteId, updateBlock],
+    [clearNoteStore, flushAllBlocks, noteId],
   );
 
   return {
