@@ -17,6 +17,10 @@ const APP_ERROR_MESSAGES: Partial<Record<AppErrorCode, ToastMessage>> = {
     title: "Block not found",
     description: "This block no longer exists or you do not have access.",
   },
+  RANK_EXHAUSTED: {
+    title: "Ordering conflict",
+    description: "Please retry your action.",
+  },
   FORBIDDEN: {
     title: "Action not allowed",
     description: "You do not have permission to do that.",

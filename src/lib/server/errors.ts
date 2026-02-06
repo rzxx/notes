@@ -11,6 +11,7 @@ type HttpErrorMeta = {
 const ERROR_HTTP_MAP = {
   NOTE_NOT_FOUND: { status: 404 },
   BLOCK_NOT_FOUND: { status: 404 },
+  RANK_EXHAUSTED: { status: 409 },
   FORBIDDEN: { status: 403 },
   DB_ERROR: { status: 500 },
   VALIDATION_ERROR: { status: 400 },

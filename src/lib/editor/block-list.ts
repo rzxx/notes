@@ -1,4 +1,5 @@
 import { compareRanks, rankAfter, rankBetween, rankInitial } from "@/lib/lexorank";
+import { isAppError } from "@/lib/errors";
 
 export type BlockLike = {
   id: string;
@@ -13,9 +14,13 @@ export const sortBlocks = <T extends BlockLike>(blocks: T[]): T[] =>
 
 export const rebuildBlockRanks = <T extends BlockLike>(blocks: T[]): T[] => {
   const ordered = sortBlocks(blocks);
+  return rebuildBlockRanksInOrder(ordered);
+};
+
+const rebuildBlockRanksInOrder = <T extends BlockLike>(blocks: T[]): T[] => {
   let prev: string | null = null;
 
-  return ordered.map((block) => {
+  return blocks.map((block) => {
     const rank = prev ? rankAfter(prev) : rankInitial();
     prev = rank;
     return { ...block, rank };
@@ -27,11 +32,23 @@ export const insertBlockAt = <T extends BlockLike>(
   newBlock: T,
   position: number,
 ): T[] => {
-  const ordered = sortBlocks(blocks);
+  let ordered = sortBlocks(blocks);
   const clamped = Math.max(0, Math.min(position, ordered.length));
-  const lowerRank = clamped > 0 ? (ordered[clamped - 1]?.rank ?? null) : null;
-  const upperRank = clamped < ordered.length ? (ordered[clamped]?.rank ?? null) : null;
-  const rank = rankBetween(lowerRank, upperRank);
+
+  const computeRank = (source: T[]) => {
+    const lowerRank = clamped > 0 ? (source[clamped - 1]?.rank ?? null) : null;
+    const upperRank = clamped < source.length ? (source[clamped]?.rank ?? null) : null;
+    return rankBetween(lowerRank, upperRank);
+  };
+
+  let rank: string;
+  try {
+    rank = computeRank(ordered);
+  } catch (error) {
+    if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+    ordered = rebuildBlockRanks(ordered);
+    rank = computeRank(ordered);
+  }
 
   const next = [...ordered];
   next.splice(clamped, 0, { ...newBlock, rank });
@@ -62,7 +79,7 @@ export const reorderBlockWithAnchors = <T extends BlockLike>(
   const moving = ordered.find((block) => block.id === blockId);
   if (!moving) return null;
 
-  const withoutMoving = ordered.filter((block) => block.id !== blockId);
+  let withoutMoving = ordered.filter((block) => block.id !== blockId);
   const beforeIndex = beforeId ? withoutMoving.findIndex((block) => block.id === beforeId) : -1;
   const afterIndex = afterId ? withoutMoving.findIndex((block) => block.id === afterId) : -1;
 
@@ -73,12 +90,23 @@ export const reorderBlockWithAnchors = <T extends BlockLike>(
   const insertionIndex = beforeId ? beforeIndex : afterIndex + 1;
   withoutMoving.splice(insertionIndex, 0, moving);
 
-  const movedIndex = withoutMoving.findIndex((block) => block.id === blockId);
-  const lowerRank = movedIndex > 0 ? (withoutMoving[movedIndex - 1]?.rank ?? null) : null;
-  const upperRank =
-    movedIndex < withoutMoving.length - 1 ? (withoutMoving[movedIndex + 1]?.rank ?? null) : null;
+  const computeRank = (source: T[]) => {
+    const movedIndex = source.findIndex((block) => block.id === blockId);
+    const lowerRank = movedIndex > 0 ? (source[movedIndex - 1]?.rank ?? null) : null;
+    const upperRank =
+      movedIndex < source.length - 1 ? (source[movedIndex + 1]?.rank ?? null) : null;
+    return rankBetween(lowerRank, upperRank);
+  };
 
-  const nextRank = rankBetween(lowerRank, upperRank);
+  let nextRank: string;
+  try {
+    nextRank = computeRank(withoutMoving);
+  } catch (error) {
+    if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+    withoutMoving = rebuildBlockRanksInOrder(withoutMoving);
+    nextRank = computeRank(withoutMoving);
+  }
+
   return withoutMoving.map((block) =>
     block.id === blockId ? { ...block, rank: nextRank } : block,
   );

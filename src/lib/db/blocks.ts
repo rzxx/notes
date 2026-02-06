@@ -46,17 +46,47 @@ export async function createBlock(input: {
 
       if (!noteRows[0]) throw Errors.NOTE_NOT_FOUND(input.noteId);
 
-      const ordered = await tx
-        .select({ id: blocks.id, rank: blocks.rank })
-        .from(blocks)
-        .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
-        .orderBy(asc(blocks.rank), asc(blocks.id));
+      const computeRank = (ordered: { id: string; rank: string }[]) => {
+        const clampedPosition = Math.max(0, Math.min(input.position, ordered.length));
+        const lowerRank = clampedPosition > 0 ? (ordered[clampedPosition - 1]?.rank ?? null) : null;
+        const upperRank =
+          clampedPosition < ordered.length ? (ordered[clampedPosition]?.rank ?? null) : null;
+        return rankBetween(lowerRank, upperRank);
+      };
 
-      const clampedPosition = Math.max(0, Math.min(input.position, ordered.length));
-      const lowerRank = clampedPosition > 0 ? (ordered[clampedPosition - 1]?.rank ?? null) : null;
-      const upperRank =
-        clampedPosition < ordered.length ? (ordered[clampedPosition]?.rank ?? null) : null;
-      const rank = rankBetween(lowerRank, upperRank);
+      const getOrdered = () =>
+        tx
+          .select({ id: blocks.id, rank: blocks.rank })
+          .from(blocks)
+          .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
+          .orderBy(asc(blocks.rank), asc(blocks.id));
+
+      const rebuildRanks = async () => {
+        const rows = await getOrdered();
+        let prev: string | null = null;
+
+        for (const row of rows) {
+          const newRank: string = prev ? rankAfter(prev) : rankInitial();
+          if (newRank !== row.rank) {
+            await tx
+              .update(blocks)
+              .set({ rank: newRank, updatedAt: new Date() })
+              .where(eq(blocks.id, row.id));
+          }
+          prev = newRank;
+        }
+      };
+
+      let ordered = await getOrdered();
+      let rank: string;
+      try {
+        rank = computeRank(ordered);
+      } catch (error) {
+        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+        await rebuildRanks();
+        ordered = await getOrdered();
+        rank = computeRank(ordered);
+      }
 
       const inserted = await tx
         .insert(blocks)
@@ -140,7 +170,7 @@ export async function splitBlock(input: {
         .from(blocks)
         .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
 
-      const block = existing[0];
+      let block = existing[0];
       if (!block) throw Errors.BLOCK_NOT_FOUND(input.blockId);
 
       const beforeContent = buildTextBlockContent({
@@ -155,20 +185,56 @@ export async function splitBlock(input: {
       });
       if (!afterContent.ok) throw afterContent.error;
 
-      const nextSibling = await tx
-        .select({ rank: blocks.rank })
-        .from(blocks)
-        .where(
-          and(
-            eq(blocks.userId, input.userId),
-            eq(blocks.noteId, block.noteId),
-            gt(blocks.rank, block.rank),
-          ),
-        )
-        .orderBy(asc(blocks.rank), asc(blocks.id))
-        .limit(1);
+      const findNextSibling = (currentRank: string) =>
+        tx
+          .select({ rank: blocks.rank })
+          .from(blocks)
+          .where(
+            and(
+              eq(blocks.userId, input.userId),
+              eq(blocks.noteId, block.noteId),
+              gt(blocks.rank, currentRank),
+            ),
+          )
+          .orderBy(asc(blocks.rank), asc(blocks.id))
+          .limit(1);
 
-      const newRank = rankBetween(block.rank, nextSibling[0]?.rank ?? null);
+      const rebuildRanks = async () => {
+        const rows = await tx
+          .select({ id: blocks.id, rank: blocks.rank })
+          .from(blocks)
+          .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, block.noteId)))
+          .orderBy(asc(blocks.rank), asc(blocks.id));
+
+        let prev: string | null = null;
+        for (const row of rows) {
+          const newRank: string = prev ? rankAfter(prev) : rankInitial();
+          if (newRank !== row.rank) {
+            await tx
+              .update(blocks)
+              .set({ rank: newRank, updatedAt: new Date() })
+              .where(eq(blocks.id, row.id));
+          }
+          prev = newRank;
+        }
+      };
+
+      let nextSibling = await findNextSibling(block.rank);
+      let newRank: string;
+      try {
+        newRank = rankBetween(block.rank, nextSibling[0]?.rank ?? null);
+      } catch (error) {
+        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+        await rebuildRanks();
+        const refreshed = await tx
+          .select(selectBlock)
+          .from(blocks)
+          .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
+        if (!refreshed[0]) throw Errors.BLOCK_NOT_FOUND(input.blockId);
+        block = refreshed[0] as BlockRow;
+        nextSibling = await findNextSibling(block.rank);
+        newRank = rankBetween(block.rank, nextSibling[0]?.rank ?? null);
+      }
 
       const updated = await tx
         .update(blocks)
@@ -329,7 +395,7 @@ export async function reorderBlocks(input: {
         .from(blocks)
         .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
 
-      const current = currentRows[0];
+      let current = currentRows[0];
       if (!current) throw Errors.BLOCK_NOT_FOUND(input.blockId);
       if (current.noteId !== input.noteId) {
         throw Errors.VALIDATION_ERROR([
@@ -341,23 +407,17 @@ export async function reorderBlocks(input: {
         ]);
       }
 
-      const before = input.beforeId
-        ? (
-            await tx
-              .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
-              .from(blocks)
-              .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.beforeId)))
-          )[0]
-        : null;
+      const readAnchor = async (id: string) =>
+        (
+          await tx
+            .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
+            .from(blocks)
+            .where(and(eq(blocks.userId, input.userId), eq(blocks.id, id)))
+        )[0] ?? null;
 
-      const after = input.afterId
-        ? (
-            await tx
-              .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
-              .from(blocks)
-              .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.afterId)))
-          )[0]
-        : null;
+      let before = input.beforeId ? await readAnchor(input.beforeId) : null;
+
+      let after = input.afterId ? await readAnchor(input.afterId) : null;
 
       if (input.beforeId && !before) throw Errors.BLOCK_NOT_FOUND(input.beforeId);
       if (input.afterId && !after) throw Errors.BLOCK_NOT_FOUND(input.afterId);
@@ -450,44 +510,89 @@ export async function reorderBlocks(input: {
         return rows[0] ?? null;
       };
 
-      let lowerRank: string | null = null;
-      let upperRank: string | null = null;
+      const rebuildRanks = async () => {
+        const rows = await tx
+          .select({ id: blocks.id, rank: blocks.rank })
+          .from(blocks)
+          .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
+          .orderBy(asc(blocks.rank), asc(blocks.id));
 
-      if (before) {
-        upperRank = before.rank;
-        const prev = after ? null : await prevSibling(before.rank, before.id);
-        lowerRank = after?.rank ?? prev?.rank ?? null;
-      }
-
-      if (after) {
-        lowerRank = after.rank;
-        if (!before) {
-          const next = await nextSibling(after.rank, after.id);
-          upperRank = next?.rank ?? null;
+        let prev: string | null = null;
+        for (const row of rows) {
+          const newRank: string = prev ? rankAfter(prev) : rankInitial();
+          if (newRank !== row.rank) {
+            await tx
+              .update(blocks)
+              .set({ rank: newRank, updatedAt: new Date() })
+              .where(eq(blocks.id, row.id));
+          }
+          prev = newRank;
         }
-      }
+      };
 
-      if (!before && !after) {
-        throw Errors.VALIDATION_ERROR([
-          {
-            code: "custom",
-            message: "beforeId or afterId is required",
-            path: ["beforeId", "afterId"],
-          },
-        ]);
-      }
+      const resolveBounds = async () => {
+        let lowerRank: string | null = null;
+        let upperRank: string | null = null;
 
-      if (lowerRank && upperRank && compareRanks(lowerRank, upperRank) >= 0) {
-        throw Errors.VALIDATION_ERROR([
-          {
-            code: "custom",
-            message: "Invalid anchor order",
-            path: ["afterId", "beforeId"],
-          },
-        ]);
-      }
+        if (before) {
+          upperRank = before.rank;
+          const prev = after ? null : await prevSibling(before.rank, before.id);
+          lowerRank = after?.rank ?? prev?.rank ?? null;
+        }
 
-      const newRank = rankBetween(lowerRank, upperRank);
+        if (after) {
+          lowerRank = after.rank;
+          if (!before) {
+            const next = await nextSibling(after.rank, after.id);
+            upperRank = next?.rank ?? null;
+          }
+        }
+
+        if (!before && !after) {
+          throw Errors.VALIDATION_ERROR([
+            {
+              code: "custom",
+              message: "beforeId or afterId is required",
+              path: ["beforeId", "afterId"],
+            },
+          ]);
+        }
+
+        if (lowerRank && upperRank && compareRanks(lowerRank, upperRank) >= 0) {
+          throw Errors.VALIDATION_ERROR([
+            {
+              code: "custom",
+              message: "Invalid anchor order",
+              path: ["afterId", "beforeId"],
+            },
+          ]);
+        }
+
+        return { lowerRank, upperRank };
+      };
+
+      let bounds = await resolveBounds();
+      let newRank: string;
+      try {
+        newRank = rankBetween(bounds.lowerRank, bounds.upperRank);
+      } catch (error) {
+        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+
+        await rebuildRanks();
+
+        const refreshedCurrent = await tx
+          .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
+          .from(blocks)
+          .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
+        current = refreshedCurrent[0];
+        if (!current) throw Errors.BLOCK_NOT_FOUND(input.blockId);
+
+        before = input.beforeId ? await readAnchor(input.beforeId) : null;
+        after = input.afterId ? await readAnchor(input.afterId) : null;
+
+        bounds = await resolveBounds();
+        newRank = rankBetween(bounds.lowerRank, bounds.upperRank);
+      }
 
       if (current.rank === newRank) {
         return { moved: false, rank: current.rank };

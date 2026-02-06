@@ -1,3 +1,5 @@
+import { Errors } from "@/lib/errors";
+
 const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const MIN_SENTINEL = -1;
 const MAX_SENTINEL = ALPHABET.length;
@@ -37,10 +39,25 @@ const pickBetween = (prev: string | null, next: string | null) => {
   }
 };
 
-export const rankBetween = (prev: string | null, next: string | null) => pickBetween(prev, next);
-export const rankAfter = (prev: string | null) => pickBetween(prev, null);
-export const rankBefore = (next: string | null) => pickBetween(null, next);
-export const rankInitial = () => pickBetween(null, null);
+export const rankBetween = (prev: string | null, next: string | null) => {
+  if (prev !== null && next !== null && !(prev < next)) {
+    throw Errors.RANK_EXHAUSTED(prev, next);
+  }
+
+  const candidate = pickBetween(prev, next);
+  if (prev !== null && !(prev < candidate)) {
+    throw Errors.RANK_EXHAUSTED(prev, next);
+  }
+  if (next !== null && !(candidate < next)) {
+    throw Errors.RANK_EXHAUSTED(prev, next);
+  }
+
+  return candidate;
+};
+
+export const rankAfter = (prev: string | null) => rankBetween(prev, null);
+export const rankBefore = (next: string | null) => rankBetween(null, next);
+export const rankInitial = () => rankBetween(null, null);
 
 export const compareRanks = (a: string, b: string) => {
   if (a === b) return 0;

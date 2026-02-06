@@ -6,6 +6,11 @@ import type { $ZodError } from "zod/v4/core";
 export const AppErrorSchema = z.discriminatedUnion("code", [
   z.object({ code: z.literal("NOTE_NOT_FOUND"), noteId: z.string() }),
   z.object({ code: z.literal("BLOCK_NOT_FOUND"), blockId: z.string() }),
+  z.object({
+    code: z.literal("RANK_EXHAUSTED"),
+    prev: z.string().nullable(),
+    next: z.string().nullable(),
+  }),
   z.object({ code: z.literal("FORBIDDEN") }),
   z.object({ code: z.literal("DB_ERROR") }),
   z.object({ code: z.literal("VALIDATION_ERROR"), issues: z.custom<$ZodError["issues"]>() }),
@@ -26,15 +31,17 @@ type ErrorCtorArgs<K extends AppErrorCode> =
     ? [noteId: string]
     : K extends "BLOCK_NOT_FOUND"
       ? [blockId: string]
-      : K extends "VALIDATION_ERROR"
-        ? [issues: $ZodError["issues"]]
-        : K extends "JSON_PARSE_ERROR"
-          ? [message: unknown]
-          : K extends "RESPONSE_PARSE_ERROR"
-            ? [status: number, payload: unknown]
-            : K extends "UNSUPPORTED_CONTENT_TYPE"
-              ? [contentType: string]
-              : [];
+      : K extends "RANK_EXHAUSTED"
+        ? [prev: string | null, next: string | null]
+        : K extends "VALIDATION_ERROR"
+          ? [issues: $ZodError["issues"]]
+          : K extends "JSON_PARSE_ERROR"
+            ? [message: unknown]
+            : K extends "RESPONSE_PARSE_ERROR"
+              ? [status: number, payload: unknown]
+              : K extends "UNSUPPORTED_CONTENT_TYPE"
+                ? [contentType: string]
+                : [];
 
 // Mapping of error codes to their constructors
 type ErrorCtors = {
@@ -45,6 +52,11 @@ type ErrorCtors = {
 export const Errors = {
   NOTE_NOT_FOUND: (noteId: string) => ({ code: "NOTE_NOT_FOUND", noteId }),
   BLOCK_NOT_FOUND: (blockId: string) => ({ code: "BLOCK_NOT_FOUND", blockId }),
+  RANK_EXHAUSTED: (prev: string | null, next: string | null) => ({
+    code: "RANK_EXHAUSTED",
+    prev,
+    next,
+  }),
   FORBIDDEN: () => ({ code: "FORBIDDEN" }),
   DB_ERROR: () => ({ code: "DB_ERROR" }),
   VALIDATION_ERROR: (issues: $ZodError["issues"]) => ({ code: "VALIDATION_ERROR", issues }),
