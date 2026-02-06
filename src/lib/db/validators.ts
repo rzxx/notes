@@ -98,11 +98,21 @@ export const updateBlockSchema = z
     if (!parsed.success) addContentIssues(ctx, parsed.error.issues);
   });
 
-export const reorderBlocksSchema = z.object({
-  noteId: z.uuid(),
-  // simplest v1: send ordered ids; server assigns 0..n-1
-  orderedBlockIds: z.array(z.uuid()).min(1),
-});
+export const reorderBlocksSchema = z
+  .object({
+    noteId: z.uuid(),
+    blockId: z.uuid(),
+    beforeId: z.uuid().nullable().optional(),
+    afterId: z.uuid().nullable().optional(),
+  })
+  .refine((data) => data.beforeId != null || data.afterId != null, {
+    message: "beforeId or afterId is required",
+    path: ["beforeId", "afterId"],
+  })
+  .refine((data) => !(data.beforeId && data.afterId && data.beforeId === data.afterId), {
+    message: "beforeId and afterId cannot be identical",
+    path: ["beforeId", "afterId"],
+  });
 
 export const splitBlockSchema = z.object({
   blockId: z.uuid(),

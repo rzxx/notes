@@ -62,7 +62,7 @@ export function useSplitBlock() {
       const tempBlock: NoteBlock = {
         id: tempId,
         type: target.type,
-        position: target.position + 1,
+        rank: target.rank,
         contentJson: { text: variables.afterText },
         plainText: variables.afterText,
         createdAt: now,
@@ -80,7 +80,8 @@ export function useSplitBlock() {
           : block,
       );
 
-      const blocks = insertBlockAt(updatedBlocks, tempBlock, target.position + 1);
+      const targetIndex = sortBlocks(previous.blocks).findIndex((block) => block.id === target.id);
+      const blocks = insertBlockAt(updatedBlocks, tempBlock, targetIndex + 1);
       queryClient.setQueryData<NoteDetailResponse>(key, { ...previous, blocks });
 
       return { previous, tempId } as const;

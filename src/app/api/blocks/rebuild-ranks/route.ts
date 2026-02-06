@@ -1,18 +1,19 @@
-import { reorderBlocksSchema } from "@/lib/db/validators";
-import { reorderBlocks } from "@/lib/db/blocks";
+import { rebuildBlockRanks } from "@/lib/db/blocks";
 import { andThenAsync } from "@/lib/result";
 import { appErrorToHttp } from "@/lib/server/errors";
 import { safeJsonParse } from "@/lib/server/utils";
+import { z } from "zod";
 
-export async function PUT(request: Request) {
-  const parsed = await safeJsonParse(request, reorderBlocksSchema);
+const rebuildBlockRanksSchema = z.object({
+  noteId: z.uuid().optional(),
+});
+
+export async function POST(request: Request) {
+  const parsed = await safeJsonParse(request, rebuildBlockRanksSchema);
   const result = await andThenAsync(parsed, (data) =>
-    reorderBlocks({
+    rebuildBlockRanks({
       userId: process.env.STUB_USER_ID!,
       noteId: data.noteId,
-      blockId: data.blockId,
-      beforeId: data.beforeId,
-      afterId: data.afterId,
     }),
   );
 
@@ -21,5 +22,5 @@ export async function PUT(request: Request) {
     return Response.json(body, { status });
   }
 
-  return Response.json({ ok: true, ...result.value });
+  return Response.json({ ok: true, rebuiltRanks: result.value });
 }

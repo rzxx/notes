@@ -205,12 +205,20 @@ export function NoteEditor({ noteId }: { noteId: string }) {
       const nextIndex = direction === "up" ? index - 1 : index + 1;
       if (nextIndex < 0 || nextIndex >= blocks.length) return;
 
-      const orderedBlockIds = blocks.map((block) => block.id);
-      const temp = orderedBlockIds[index];
-      orderedBlockIds[index] = orderedBlockIds[nextIndex];
-      orderedBlockIds[nextIndex] = temp;
+      if (direction === "up") {
+        reorderBlocks.mutate({
+          noteId,
+          blockId,
+          beforeId: blocks[nextIndex]?.id ?? null,
+        });
+        return;
+      }
 
-      reorderBlocks.mutate({ noteId, orderedBlockIds });
+      reorderBlocks.mutate({
+        noteId,
+        blockId,
+        afterId: blocks[nextIndex]?.id ?? null,
+      });
     },
     [blocks, noteId, reorderBlocks],
   );

@@ -61,7 +61,7 @@ export function useCreateBlock() {
       const tempBlock: NoteBlock = {
         id: tempId,
         type: variables.type,
-        position: variables.position,
+        rank: "",
         contentJson: variables.contentJson ?? { text: "" },
         plainText: variables.plainText ?? "",
         createdAt: now,

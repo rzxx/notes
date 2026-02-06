@@ -4,16 +4,19 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteDetailResponse } from "@/lib/hooks/editor/types";
-import { reorderBlocksByIds } from "@/lib/editor/block-list";
+import { reorderBlockWithAnchors } from "@/lib/editor/block-list";
 
 type ReorderBlocksInput = {
   noteId: string;
-  orderedBlockIds: string[];
+  blockId: string;
+  beforeId?: string | null;
+  afterId?: string | null;
 };
 
 type ReorderBlocksResponse = {
   ok: true;
-  reordered: boolean;
+  moved: boolean;
+  rank: string;
 };
 
 async function reorderBlocks(input: ReorderBlocksInput) {
@@ -22,7 +25,9 @@ async function reorderBlocks(input: ReorderBlocksInput) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       noteId: input.noteId,
-      orderedBlockIds: input.orderedBlockIds,
+      blockId: input.blockId,
+      beforeId: input.beforeId,
+      afterId: input.afterId,
     }),
   });
 
@@ -42,7 +47,11 @@ export function useReorderBlocks() {
       const previous = queryClient.getQueryData<NoteDetailResponse>(key);
       if (!previous) return { previous: null } as const;
 
-      const reordered = reorderBlocksByIds(previous.blocks, variables.orderedBlockIds);
+      const reordered = reorderBlockWithAnchors(previous.blocks, {
+        blockId: variables.blockId,
+        beforeId: variables.beforeId,
+        afterId: variables.afterId,
+      });
       if (!reordered) return { previous } as const;
 
       queryClient.setQueryData<NoteDetailResponse>(key, { ...previous, blocks: reordered });

@@ -1,15 +1,26 @@
+import { compareRanks, rankAfter, rankBetween, rankInitial } from "@/lib/lexorank";
+
 export type BlockLike = {
   id: string;
-  position: number;
+  rank: string;
 };
 
 export const sortBlocks = <T extends BlockLike>(blocks: T[]): T[] =>
-  [...blocks].sort((a, b) =>
-    a.position !== b.position ? a.position - b.position : a.id.localeCompare(b.id),
-  );
+  [...blocks].sort((a, b) => {
+    const rankComparison = compareRanks(a.rank, b.rank);
+    return rankComparison !== 0 ? rankComparison : a.id.localeCompare(b.id);
+  });
 
-export const normalizeBlockPositions = <T extends BlockLike>(blocks: T[]): T[] =>
-  sortBlocks(blocks).map((block, index) => ({ ...block, position: index }));
+export const rebuildBlockRanks = <T extends BlockLike>(blocks: T[]): T[] => {
+  const ordered = sortBlocks(blocks);
+  let prev: string | null = null;
+
+  return ordered.map((block) => {
+    const rank = prev ? rankAfter(prev) : rankInitial();
+    prev = rank;
+    return { ...block, rank };
+  });
+};
 
 export const insertBlockAt = <T extends BlockLike>(
   blocks: T[],
@@ -18,9 +29,13 @@ export const insertBlockAt = <T extends BlockLike>(
 ): T[] => {
   const ordered = sortBlocks(blocks);
   const clamped = Math.max(0, Math.min(position, ordered.length));
+  const lowerRank = clamped > 0 ? (ordered[clamped - 1]?.rank ?? null) : null;
+  const upperRank = clamped < ordered.length ? (ordered[clamped]?.rank ?? null) : null;
+  const rank = rankBetween(lowerRank, upperRank);
+
   const next = [...ordered];
-  next.splice(clamped, 0, { ...newBlock, position: clamped });
-  return next.map((block, index) => ({ ...block, position: index }));
+  next.splice(clamped, 0, { ...newBlock, rank });
+  return next;
 };
 
 export const replaceBlockById = <T extends BlockLike>(
@@ -32,20 +47,39 @@ export const replaceBlockById = <T extends BlockLike>(
 export const removeBlockById = <T extends BlockLike>(blocks: T[], id: string): T[] =>
   blocks.filter((block) => block.id !== id);
 
-export const reorderBlocksByIds = <T extends BlockLike>(
+export const reorderBlockWithAnchors = <T extends BlockLike>(
   blocks: T[],
-  orderedIds: string[],
+  input: {
+    blockId: string;
+    beforeId?: string | null;
+    afterId?: string | null;
+  },
 ): T[] | null => {
-  const blockMap = new Map(blocks.map((block) => [block.id, block] as const));
-  if (blockMap.size !== orderedIds.length) return null;
+  const { blockId, beforeId = null, afterId = null } = input;
+  if (!beforeId && !afterId) return null;
 
-  const reordered: T[] = [];
-  for (const [index, id] of orderedIds.entries()) {
-    const block = blockMap.get(id);
-    if (!block) return null;
-    reordered.push({ ...block, position: index });
-  }
+  const ordered = sortBlocks(blocks);
+  const moving = ordered.find((block) => block.id === blockId);
+  if (!moving) return null;
 
-  if (reordered.length !== blocks.length) return null;
-  return reordered;
+  const withoutMoving = ordered.filter((block) => block.id !== blockId);
+  const beforeIndex = beforeId ? withoutMoving.findIndex((block) => block.id === beforeId) : -1;
+  const afterIndex = afterId ? withoutMoving.findIndex((block) => block.id === afterId) : -1;
+
+  if (beforeId && beforeIndex < 0) return null;
+  if (afterId && afterIndex < 0) return null;
+  if (beforeId && afterId && afterIndex >= beforeIndex) return null;
+
+  const insertionIndex = beforeId ? beforeIndex : afterIndex + 1;
+  withoutMoving.splice(insertionIndex, 0, moving);
+
+  const movedIndex = withoutMoving.findIndex((block) => block.id === blockId);
+  const lowerRank = movedIndex > 0 ? (withoutMoving[movedIndex - 1]?.rank ?? null) : null;
+  const upperRank =
+    movedIndex < withoutMoving.length - 1 ? (withoutMoving[movedIndex + 1]?.rank ?? null) : null;
+
+  const nextRank = rankBetween(lowerRank, upperRank);
+  return withoutMoving.map((block) =>
+    block.id === blockId ? { ...block, rank: nextRank } : block,
+  );
 };

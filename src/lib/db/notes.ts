@@ -614,7 +614,7 @@ export async function getNoteById(input: { userId: string; noteId: string }) {
       .select({
         id: blocks.id,
         type: blocks.type,
-        position: blocks.position,
+        rank: blocks.rank,
         contentJson: blocks.contentJson,
         plainText: blocks.plainText,
         createdAt: blocks.createdAt,
@@ -622,7 +622,7 @@ export async function getNoteById(input: { userId: string; noteId: string }) {
       })
       .from(blocks)
       .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
-      .orderBy(blocks.position, blocks.id);
+      .orderBy(blocks.rank, blocks.id);
 
     return Ok({ note: note[0], blocks: noteBlocks });
   } catch (e) {

@@ -77,7 +77,7 @@ export const blocks = pgTable(
     userId: uuid("user_id").notNull(),
 
     type: text("type").notNull(), // e.g. 'paragraph' | 'heading' | ...
-    position: integer("position").notNull(), // ordering within note
+    rank: text("rank").notNull(), // ordering within note
 
     contentJson: jsonb("content_json").notNull().default({}),
     plainText: text("plain_text").notNull().default(""),
@@ -87,11 +87,11 @@ export const blocks = pgTable(
   },
   (t) => [
     // primary query for rendering a note
-    index("blocks_idx_note_position").on(t.noteId, t.position),
+    index("blocks_idx_note_rank_id").on(t.noteId, t.rank, t.id),
 
     index("blocks_idx_user").on(t.userId),
 
-    // prevent two blocks from having same position in same note
-    uniqueIndex("blocks_uniq_note_position").on(t.noteId, t.position),
+    // prevent two blocks from having same rank in same note
+    uniqueIndex("blocks_uniq_note_rank").on(t.noteId, t.rank),
   ],
 );

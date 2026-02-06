@@ -11,7 +11,7 @@ import type { BlockContent, BlockType } from "@/lib/editor/block-content";
 export type NoteBlock = {
   id: string;
   type: BlockType;
-  position: number;
+  rank: string;
   contentJson: BlockContent;
   plainText: string;
   createdAt: string;
