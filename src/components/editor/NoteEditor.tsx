@@ -55,6 +55,13 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const autoInsertStateRef = React.useRef<Record<string, "idle" | "pending" | "succeeded">>({});
 
   const blocks = React.useMemo(() => sortBlocks(noteQuery.data?.blocks ?? []), [noteQuery.data]);
+  const isSaving =
+    updateBlock.hasPendingUpdates() ||
+    createBlock.isPending ||
+    deleteBlock.isPending ||
+    splitBlock.isPending ||
+    mergeBlocks.isPending ||
+    reorderBlocks.isPending;
 
   const getBlockSelection = React.useCallback((blockId: string) => {
     const node = blockRefs.current[blockId];
@@ -245,7 +252,15 @@ export function NoteEditor({ noteId }: { noteId: string }) {
     >
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-stone-900">{noteQuery.data.note.title}</h1>
-        <p className="text-xs text-stone-500">{noteQuery.data.note.id}</p>
+        <div className="flex items-center gap-3 text-xs text-stone-500">
+          <p>{noteQuery.data.note.id}</p>
+          <p
+            aria-live="polite"
+            className={`text-xs text-stone-500 transition-opacity duration-250 ${isSaving ? "opacity-100" : "opacity-0"} `}
+          >
+            Unsaved changes
+          </p>
+        </div>
       </header>
 
       <section className="space-y-3">
