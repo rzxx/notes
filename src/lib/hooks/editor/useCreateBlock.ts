@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
 import type { BlockContent, BlockType } from "@/lib/editor/block-content";
 import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
+import { makeTempId } from "@/lib/utils";
 
 type CreateBlockInput = {
   noteId: string;
@@ -19,13 +20,6 @@ type CreateBlockResponse = {
   ok: true;
   block: NoteBlock;
 };
-
-const makeTempId = () =>
-  `temp-${
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(16).slice(2)
-  }`;
 
 async function createBlock(input: CreateBlockInput) {
   const result = await fetchResult<CreateBlockResponse>("/api/blocks", {

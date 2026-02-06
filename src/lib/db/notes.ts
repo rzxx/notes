@@ -7,6 +7,40 @@ import { Errors, isAppError } from "@/lib/errors";
 import { parseCursor } from "@/lib/server/utils";
 import { rankAfter, rankBefore, rankBetween, rankInitial } from "@/lib/lexorank";
 
+type RankableRow = {
+  id: string;
+  rank: string;
+};
+
+const persistDenseRanks = async (
+  rows: RankableRow[],
+  updateRank: (rowId: string, newRank: string) => Promise<void>,
+) => {
+  let prev: string | null = null;
+  for (const row of rows) {
+    const newRank: string = prev ? rankAfter(prev) : rankInitial();
+    if (newRank !== row.rank) {
+      await updateRank(row.id, newRank);
+    }
+    prev = newRank;
+  }
+};
+
+const withRankExhaustionRecovery = async <T>(
+  compute: () => Promise<T> | T,
+  recover: () => Promise<void>,
+) => {
+  try {
+    return await compute();
+  } catch (error) {
+    if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") {
+      throw error;
+    }
+    await recover();
+    return await compute();
+  }
+};
+
 export async function createNote(input: {
   userId: string;
   parentId?: string | null;
@@ -100,13 +134,32 @@ export async function createNote(input: {
 export async function deleteNote(input: { userId: string; noteId: string }) {
   try {
     await db.transaction(async (tx) => {
+      const rebuildRanksForParent = async (parentId: string | null) => {
+        const where = parentId
+          ? and(eq(notes.userId, input.userId), eq(notes.parentId, parentId))
+          : and(eq(notes.userId, input.userId), isNull(notes.parentId));
+
+        const siblings = await tx
+          .select({ id: notes.id, rank: notes.rank })
+          .from(notes)
+          .where(where)
+          .orderBy(asc(notes.rank), asc(notes.id));
+
+        await persistDenseRanks(siblings, async (rowId, newRank) => {
+          await tx
+            .update(notes)
+            .set({ rank: newRank, updatedAt: new Date() })
+            .where(and(eq(notes.userId, input.userId), eq(notes.id, rowId)));
+        });
+      };
+
       // 1) fetch parentId
       const noteRows = await tx
         .select({ parentId: notes.parentId, rank: notes.rank })
         .from(notes)
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-      const note = noteRows[0];
+      let note = noteRows[0];
       if (!note) {
         throw Errors.NOTE_NOT_FOUND(input.noteId);
       }
@@ -120,51 +173,69 @@ export async function deleteNote(input: { userId: string; noteId: string }) {
         .orderBy(asc(notes.rank), asc(notes.id));
 
       if (children.length > 0) {
-        const parentWhere = targetParentId
-          ? eq(notes.parentId, targetParentId)
-          : isNull(notes.parentId);
+        await withRankExhaustionRecovery(
+          async () => {
+            await tx.transaction(async (innerTx) => {
+              const parentWhere = targetParentId
+                ? eq(notes.parentId, targetParentId)
+                : isNull(notes.parentId);
 
-        const nextSibling = await tx
-          .select({ rank: notes.rank })
-          .from(notes)
-          .where(and(eq(notes.userId, input.userId), parentWhere, gt(notes.rank, note.rank)))
-          .orderBy(asc(notes.rank), asc(notes.id))
-          .limit(1);
+              const nextSibling = await innerTx
+                .select({ rank: notes.rank })
+                .from(notes)
+                .where(and(eq(notes.userId, input.userId), parentWhere, gt(notes.rank, note.rank)))
+                .orderBy(asc(notes.rank), asc(notes.id))
+                .limit(1);
 
-        const prevSibling = await tx
-          .select({ rank: notes.rank })
-          .from(notes)
-          .where(and(eq(notes.userId, input.userId), parentWhere, lt(notes.rank, note.rank)))
-          .orderBy(desc(notes.rank), desc(notes.id))
-          .limit(1);
+              const prevSibling = await innerTx
+                .select({ rank: notes.rank })
+                .from(notes)
+                .where(and(eq(notes.userId, input.userId), parentWhere, lt(notes.rank, note.rank)))
+                .orderBy(desc(notes.rank), desc(notes.id))
+                .limit(1);
 
-        const tempRank = prevSibling[0]
-          ? rankBetween(prevSibling[0].rank, note.rank)
-          : rankBefore(note.rank);
+              const tempRank = prevSibling[0]
+                ? rankBetween(prevSibling[0].rank, note.rank)
+                : rankBefore(note.rank);
 
-        await tx
-          .update(notes)
-          .set({ rank: tempRank })
-          .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+              await innerTx
+                .update(notes)
+                .set({ rank: tempRank })
+                .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-        let prevRank = note.rank;
-        const upperRank = nextSibling[0]?.rank ?? null;
+              let prevRank = note.rank;
+              const upperRank = nextSibling[0]?.rank ?? null;
 
-        for (let index = 0; index < children.length; index += 1) {
-          const child = children[index];
-          const newRank =
-            index === 0
-              ? note.rank
-              : upperRank
-                ? rankBetween(prevRank, upperRank)
-                : rankAfter(prevRank);
-          prevRank = newRank;
+              for (let index = 0; index < children.length; index += 1) {
+                const child = children[index];
+                const newRank =
+                  index === 0
+                    ? note.rank
+                    : upperRank
+                      ? rankBetween(prevRank, upperRank)
+                      : rankAfter(prevRank);
+                prevRank = newRank;
 
-          await tx
-            .update(notes)
-            .set({ parentId: targetParentId, rank: newRank })
-            .where(and(eq(notes.userId, input.userId), eq(notes.id, child.id)));
-        }
+                await innerTx
+                  .update(notes)
+                  .set({ parentId: targetParentId, rank: newRank })
+                  .where(and(eq(notes.userId, input.userId), eq(notes.id, child.id)));
+              }
+            });
+          },
+          async () => {
+            await rebuildRanksForParent(targetParentId);
+            const refreshedNote = await tx
+              .select({ parentId: notes.parentId, rank: notes.rank })
+              .from(notes)
+              .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+
+            note = refreshedNote[0];
+            if (!note) {
+              throw Errors.NOTE_NOT_FOUND(input.noteId);
+            }
+          },
+        );
       }
 
       // 3) update closure depths for lifted subtrees
@@ -220,12 +291,31 @@ export async function moveNote(input: {
 }) {
   try {
     const result = await db.transaction(async (tx) => {
+      const rebuildRanksForParent = async (parentId: string | null) => {
+        const where = parentId
+          ? and(eq(notes.userId, input.userId), eq(notes.parentId, parentId))
+          : and(eq(notes.userId, input.userId), isNull(notes.parentId));
+
+        const siblings = await tx
+          .select({ id: notes.id, rank: notes.rank })
+          .from(notes)
+          .where(where)
+          .orderBy(asc(notes.rank), asc(notes.id));
+
+        await persistDenseRanks(siblings, async (rowId, newRank) => {
+          await tx
+            .update(notes)
+            .set({ rank: newRank, updatedAt: new Date() })
+            .where(and(eq(notes.userId, input.userId), eq(notes.id, rowId)));
+        });
+      };
+
       const existingNote = await tx
         .select({ parentId: notes.parentId, rank: notes.rank })
         .from(notes)
         .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
 
-      const current = existingNote[0];
+      let current = existingNote[0];
       if (!current) {
         throw Errors.NOTE_NOT_FOUND(input.noteId);
       }
@@ -383,7 +473,93 @@ export async function moveNote(input: {
         ]);
       }
 
-      const newRank = rankBetween(lowerRank, upperRank);
+      const newRank = await withRankExhaustionRecovery(
+        () => rankBetween(lowerRank, upperRank),
+        async () => {
+          await rebuildRanksForParent(targetParentId);
+
+          const refreshedCurrent = await tx
+            .select({ parentId: notes.parentId, rank: notes.rank })
+            .from(notes)
+            .where(and(eq(notes.userId, input.userId), eq(notes.id, input.noteId)));
+          const nextCurrent = refreshedCurrent[0];
+          if (!nextCurrent) {
+            throw Errors.NOTE_NOT_FOUND(input.noteId);
+          }
+
+          const refreshedAnchors = anchorIds.length
+            ? await tx
+                .select({ id: notes.id, parentId: notes.parentId, rank: notes.rank })
+                .from(notes)
+                .where(and(eq(notes.userId, input.userId), inArray(notes.id, anchorIds)))
+            : [];
+
+          const nextBefore = beforeId
+            ? refreshedAnchors.find((row) => row.id === beforeId)
+            : undefined;
+          const nextAfter = afterId
+            ? refreshedAnchors.find((row) => row.id === afterId)
+            : undefined;
+
+          if (beforeId && !nextBefore) throw Errors.NOTE_NOT_FOUND(beforeId);
+          if (afterId && !nextAfter) throw Errors.NOTE_NOT_FOUND(afterId);
+
+          if (nextBefore && nextBefore.parentId !== targetParentId) {
+            throw Errors.VALIDATION_ERROR([
+              { code: "custom", message: "beforeId parent mismatch", path: ["beforeId"] },
+            ]);
+          }
+
+          if (nextAfter && nextAfter.parentId !== targetParentId) {
+            throw Errors.VALIDATION_ERROR([
+              { code: "custom", message: "afterId parent mismatch", path: ["afterId"] },
+            ]);
+          }
+
+          let nextLowerRank: string | null = null;
+          let nextUpperRank: string | null = null;
+
+          if (nextBefore) {
+            nextUpperRank = nextBefore.rank;
+            const prev = await prevSibling(nextBefore.rank, nextBefore.id);
+            nextLowerRank = nextAfter?.rank ?? prev?.rank ?? null;
+          }
+
+          if (nextAfter) {
+            nextLowerRank = nextAfter.rank;
+            if (!nextBefore) {
+              const next = await nextSibling(nextAfter.rank, nextAfter.id);
+              nextUpperRank = next?.rank ?? null;
+            }
+          }
+
+          if (!nextBefore && !nextAfter) {
+            const last = await tx
+              .select({ rank: notes.rank })
+              .from(notes)
+              .where(
+                and(eq(notes.userId, input.userId), targetParentClause, ne(notes.id, input.noteId)),
+              )
+              .orderBy(desc(notes.rank), desc(notes.id))
+              .limit(1);
+            nextLowerRank = last[0]?.rank ?? null;
+          }
+
+          if (nextLowerRank && nextUpperRank && nextLowerRank >= nextUpperRank) {
+            throw Errors.VALIDATION_ERROR([
+              {
+                code: "custom",
+                message: "Invalid anchor ordering",
+                path: ["beforeId", "afterId"],
+              },
+            ]);
+          }
+
+          lowerRank = nextLowerRank;
+          upperRank = nextUpperRank;
+          current = nextCurrent;
+        },
+      );
 
       if (current.parentId === targetParentId && current.rank === newRank) {
         return { moved: false };

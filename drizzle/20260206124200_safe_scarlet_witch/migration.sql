@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "notes_uniq_user_root_rank" ON "notes" ("user_id","rank") WHERE "parent_id" is null;

@@ -36,6 +36,9 @@ export const notes = pgTable(
       .where(sql`${t.parentId} is null`),
 
     uniqueIndex("notes_uniq_user_parent_rank").on(t.userId, t.parentId, t.rank),
+    uniqueIndex("notes_uniq_user_root_rank")
+      .on(t.userId, t.rank)
+      .where(sql`${t.parentId} is null`),
 
     index("notes_idx_user").on(t.userId),
     index("notes_idx_user_parent_created_id").on(t.userId, t.parentId, t.createdAt, t.id),

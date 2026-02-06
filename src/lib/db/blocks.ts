@@ -18,6 +18,11 @@ type BlockRow = {
   updatedAt: Date;
 };
 
+type RankableRow = {
+  id: string;
+  rank: string;
+};
+
 const selectBlock = {
   id: blocks.id,
   noteId: blocks.noteId,
@@ -27,6 +32,35 @@ const selectBlock = {
   plainText: blocks.plainText,
   createdAt: blocks.createdAt,
   updatedAt: blocks.updatedAt,
+};
+
+const persistDenseRanks = async (
+  rows: RankableRow[],
+  updateRank: (rowId: string, newRank: string) => Promise<void>,
+) => {
+  let prev: string | null = null;
+  for (const row of rows) {
+    const newRank: string = prev ? rankAfter(prev) : rankInitial();
+    if (newRank !== row.rank) {
+      await updateRank(row.id, newRank);
+    }
+    prev = newRank;
+  }
+};
+
+const withRankExhaustionRecovery = async <T>(
+  compute: () => Promise<T> | T,
+  recover: () => Promise<void>,
+) => {
+  try {
+    return await compute();
+  } catch (error) {
+    if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") {
+      throw error;
+    }
+    await recover();
+    return await compute();
+  }
 };
 
 export async function createBlock(input: {
@@ -63,30 +97,23 @@ export async function createBlock(input: {
 
       const rebuildRanks = async () => {
         const rows = await getOrdered();
-        let prev: string | null = null;
-
-        for (const row of rows) {
-          const newRank: string = prev ? rankAfter(prev) : rankInitial();
-          if (newRank !== row.rank) {
-            await tx
-              .update(blocks)
-              .set({ rank: newRank, updatedAt: new Date() })
-              .where(eq(blocks.id, row.id));
-          }
-          prev = newRank;
-        }
+        await persistDenseRanks(rows, async (rowId, newRank) => {
+          await tx
+            .update(blocks)
+            .set({ rank: newRank, updatedAt: new Date() })
+            .where(eq(blocks.id, rowId));
+        });
       };
 
-      let ordered = await getOrdered();
-      let rank: string;
-      try {
-        rank = computeRank(ordered);
-      } catch (error) {
-        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
-        await rebuildRanks();
-        ordered = await getOrdered();
-        rank = computeRank(ordered);
-      }
+      const rank = await withRankExhaustionRecovery(
+        async () => {
+          const ordered = await getOrdered();
+          return computeRank(ordered);
+        },
+        async () => {
+          await rebuildRanks();
+        },
+      );
 
       const inserted = await tx
         .insert(blocks)
@@ -206,35 +233,29 @@ export async function splitBlock(input: {
           .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, block.noteId)))
           .orderBy(asc(blocks.rank), asc(blocks.id));
 
-        let prev: string | null = null;
-        for (const row of rows) {
-          const newRank: string = prev ? rankAfter(prev) : rankInitial();
-          if (newRank !== row.rank) {
-            await tx
-              .update(blocks)
-              .set({ rank: newRank, updatedAt: new Date() })
-              .where(eq(blocks.id, row.id));
-          }
-          prev = newRank;
-        }
+        await persistDenseRanks(rows, async (rowId, newRank) => {
+          await tx
+            .update(blocks)
+            .set({ rank: newRank, updatedAt: new Date() })
+            .where(eq(blocks.id, rowId));
+        });
       };
 
-      let nextSibling = await findNextSibling(block.rank);
-      let newRank: string;
-      try {
-        newRank = rankBetween(block.rank, nextSibling[0]?.rank ?? null);
-      } catch (error) {
-        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
-        await rebuildRanks();
-        const refreshed = await tx
-          .select(selectBlock)
-          .from(blocks)
-          .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
-        if (!refreshed[0]) throw Errors.BLOCK_NOT_FOUND(input.blockId);
-        block = refreshed[0] as BlockRow;
-        nextSibling = await findNextSibling(block.rank);
-        newRank = rankBetween(block.rank, nextSibling[0]?.rank ?? null);
-      }
+      const newRank = await withRankExhaustionRecovery(
+        async () => {
+          const nextSibling = await findNextSibling(block.rank);
+          return rankBetween(block.rank, nextSibling[0]?.rank ?? null);
+        },
+        async () => {
+          await rebuildRanks();
+          const refreshed = await tx
+            .select(selectBlock)
+            .from(blocks)
+            .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
+          if (!refreshed[0]) throw Errors.BLOCK_NOT_FOUND(input.blockId);
+          block = refreshed[0] as BlockRow;
+        },
+      );
 
       const updated = await tx
         .update(blocks)
@@ -517,17 +538,12 @@ export async function reorderBlocks(input: {
           .where(and(eq(blocks.userId, input.userId), eq(blocks.noteId, input.noteId)))
           .orderBy(asc(blocks.rank), asc(blocks.id));
 
-        let prev: string | null = null;
-        for (const row of rows) {
-          const newRank: string = prev ? rankAfter(prev) : rankInitial();
-          if (newRank !== row.rank) {
-            await tx
-              .update(blocks)
-              .set({ rank: newRank, updatedAt: new Date() })
-              .where(eq(blocks.id, row.id));
-          }
-          prev = newRank;
-        }
+        await persistDenseRanks(rows, async (rowId, newRank) => {
+          await tx
+            .update(blocks)
+            .set({ rank: newRank, updatedAt: new Date() })
+            .where(eq(blocks.id, rowId));
+        });
       };
 
       const resolveBounds = async () => {
@@ -571,28 +587,25 @@ export async function reorderBlocks(input: {
         return { lowerRank, upperRank };
       };
 
-      let bounds = await resolveBounds();
-      let newRank: string;
-      try {
-        newRank = rankBetween(bounds.lowerRank, bounds.upperRank);
-      } catch (error) {
-        if (!isAppError(error) || error.code !== "RANK_EXHAUSTED") throw error;
+      const newRank = await withRankExhaustionRecovery(
+        async () => {
+          const bounds = await resolveBounds();
+          return rankBetween(bounds.lowerRank, bounds.upperRank);
+        },
+        async () => {
+          await rebuildRanks();
 
-        await rebuildRanks();
+          const refreshedCurrent = await tx
+            .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
+            .from(blocks)
+            .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
+          current = refreshedCurrent[0];
+          if (!current) throw Errors.BLOCK_NOT_FOUND(input.blockId);
 
-        const refreshedCurrent = await tx
-          .select({ id: blocks.id, noteId: blocks.noteId, rank: blocks.rank })
-          .from(blocks)
-          .where(and(eq(blocks.userId, input.userId), eq(blocks.id, input.blockId)));
-        current = refreshedCurrent[0];
-        if (!current) throw Errors.BLOCK_NOT_FOUND(input.blockId);
-
-        before = input.beforeId ? await readAnchor(input.beforeId) : null;
-        after = input.afterId ? await readAnchor(input.afterId) : null;
-
-        bounds = await resolveBounds();
-        newRank = rankBetween(bounds.lowerRank, bounds.upperRank);
-      }
+          before = input.beforeId ? await readAnchor(input.beforeId) : null;
+          after = input.afterId ? await readAnchor(input.afterId) : null;
+        },
+      );
 
       if (current.rank === newRank) {
         return { moved: false, rank: current.rank };
@@ -637,14 +650,9 @@ export async function rebuildBlockRanks(input: { userId?: string; noteId?: strin
           )
           .orderBy(asc(blocks.rank), asc(blocks.id));
 
-        let prev: string | null = null;
-        for (const row of rows) {
-          const newRank: string = prev ? rankAfter(prev) : rankInitial();
-          if (newRank !== row.rank) {
-            await tx.update(blocks).set({ rank: newRank }).where(eq(blocks.id, row.id));
-          }
-          prev = newRank;
-        }
+        await persistDenseRanks(rows, async (rowId, newRank) => {
+          await tx.update(blocks).set({ rank: newRank }).where(eq(blocks.id, rowId));
+        });
       }
     });
 

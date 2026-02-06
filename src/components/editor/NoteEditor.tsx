@@ -9,13 +9,14 @@ import { useCreateBlock } from "@/lib/hooks/editor/useCreateBlock";
 import { useDeleteBlock } from "@/lib/hooks/editor/useDeleteBlock";
 import { useMergeBlocks } from "@/lib/hooks/editor/useMergeBlocks";
 import { useReorderBlocks } from "@/lib/hooks/editor/useReorderBlocks";
-import { makeTempId as makeSplitTempId, useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
+import { useSplitBlock } from "@/lib/hooks/editor/useSplitBlock";
 import { useEditorSession } from "@/lib/hooks/editor/useEditorSession";
 import { useUpdateBlock } from "@/lib/hooks/editor/useUpdateBlock";
 import type { NoteBlock } from "@/lib/hooks/editor/types";
 import { getBlockTextFromContent, type BlockType } from "@/lib/editor/block-content";
 import { sortBlocks } from "@/lib/editor/block-list";
 import { selectDraftForBlock, useEditorStore } from "@/lib/stores/editor";
+import { makeTempId as makeSplitTempId } from "@/lib/utils";
 
 const getBlockText = (block: NoteBlock) =>
   getBlockTextFromContent({

@@ -5,6 +5,7 @@ import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
 import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
+import { makeTempId } from "@/lib/utils";
 
 type SplitBlockInput = {
   noteId: string;
@@ -19,13 +20,6 @@ type SplitBlockResponse = {
   block: NoteBlock;
   newBlock: NoteBlock;
 };
-
-export const makeTempId = () =>
-  `temp-${
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(16).slice(2)
-  }`;
 
 async function splitBlock(input: SplitBlockInput) {
   const result = await fetchResult<SplitBlockResponse>("/api/blocks/split", {
