@@ -28,6 +28,8 @@ const getBlockText = (block: NoteBlock) =>
 const normalizeDraftText = (value: string) => value.replace(/\r\n/g, "\n");
 
 const isHeading = (type: string) => type === "heading";
+const paragraphLineHeight = 1.45;
+const paragraphBlockSpacingRem = 0.68;
 
 export function NoteEditor({ noteId }: { noteId: string }) {
   const noteQuery = useNote(noteId);
@@ -263,7 +265,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
         </div>
       </header>
 
-      <section className="space-y-3">
+      <section className="flex flex-col" style={{ rowGap: `${paragraphBlockSpacingRem}rem` }}>
         {blocks.map((block, index) => (
           <EditorBlock
             key={block.id}
@@ -559,16 +561,14 @@ function EditorBlock({
   return (
     <div
       data-editor-block="true"
-      className={`group relative rounded-lg border px-3 py-2 transition-colors ${
-        isActive
-          ? "border-stone-400 bg-white shadow-xs"
-          : "border-transparent hover:border-stone-200"
+      className={`group relative rounded-md px-2 py-1.5 transition-colors ${
+        isActive ? "bg-stone-100 ring-1 ring-stone-200/90" : "bg-transparent hover:bg-stone-100/75"
       }`}
     >
-      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         <button
           type="button"
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-stone-50/90 text-stone-500 transition-colors hover:bg-stone-200/80 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => handleMove(block.id, "up")}
           disabled={isTop || reorderBlocks.isPending}
           aria-label="Move block up"
@@ -577,7 +577,7 @@ function EditorBlock({
         </button>
         <button
           type="button"
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-6 w-6 items-center justify-center rounded-md bg-stone-50/90 text-stone-500 transition-colors hover:bg-stone-200/80 hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => handleMove(block.id, "down")}
           disabled={isBottom || reorderBlocks.isPending}
           aria-label="Move block down"
@@ -608,8 +608,9 @@ function EditorBlock({
         onKeyDown={handleKeyDown}
         placeholder={block.type === "heading" ? "Heading" : "Write something..."}
         rows={1}
-        className={`w-full resize-none bg-transparent text-stone-900 transition-colors outline-none ${
-          isHeading(block.type) ? "text-lg font-semibold" : "text-sm leading-6"
+        style={isHeading(block.type) ? undefined : { lineHeight: paragraphLineHeight }}
+        className={`w-full resize-none bg-transparent pr-24 text-stone-900 transition-colors outline-none ${
+          isHeading(block.type) ? "text-lg font-semibold" : "text-[15px]"
         }`}
       />
     </div>
@@ -632,7 +633,7 @@ function BlockActions({
   return (
     <>
       <Menu.Root>
-        <Menu.Trigger className="flex h-7 w-7 items-center justify-center rounded-md border border-stone-200 bg-white text-stone-500 transition-colors hover:border-stone-300 hover:text-stone-700">
+        <Menu.Trigger className="flex h-6 w-6 items-center justify-center rounded-md bg-stone-50/90 text-stone-500 transition-colors hover:bg-stone-200/80 hover:text-stone-700">
           <Ellipsis size={14} />
         </Menu.Trigger>
         <Menu.Portal>
