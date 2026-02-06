@@ -507,7 +507,7 @@ function EditorBlock({
           onDelete={() => onDeleteBlock(block.id)}
           isBusy={
             deleteBlock.isPending ||
-            updateBlock.isPending ||
+            updateBlock.isBlockPending(block.id) ||
             splitBlock.isPending ||
             mergeBlocks.isPending
           }

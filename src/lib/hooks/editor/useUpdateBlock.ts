@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -46,13 +46,27 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   const timeoutRef = useRef(new Map<string, number>());
   const pendingRef = useRef(new Map<string, UpdateBlockInput>());
   const tempMapRef = useRef(new Map<string, string>());
+  const inFlightByBlockRef = useRef(new Map<string, number>());
+  const [, bumpPendingVersion] = useReducer((value: number) => value + 1, 0);
 
   const isTempId = (id: string) => id.startsWith("temp-");
   const resolveBlockId = (id: string) => tempMapRef.current.get(id) ?? id;
+  const markBlockMutation = (blockId: string, delta: 1 | -1) => {
+    const resolvedId = tempMapRef.current.get(blockId) ?? blockId;
+    const current = inFlightByBlockRef.current.get(resolvedId) ?? 0;
+    const next = current + delta;
+    if (next <= 0) {
+      inFlightByBlockRef.current.delete(resolvedId);
+    } else {
+      inFlightByBlockRef.current.set(resolvedId, next);
+    }
+    bumpPendingVersion();
+  };
 
   const mutation = useMutation({
     mutationFn: updateBlock,
     onMutate: async (variables) => {
+      markBlockMutation(variables.blockId, 1);
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
 
       const key = queryKeys.notes.detail(variables.noteId);
@@ -87,6 +101,9 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
         );
         return { ...current, blocks };
       });
+    },
+    onSettled: (_data, _error, variables) => {
+      markBlockMutation(variables.blockId, -1);
     },
   });
 
@@ -202,11 +219,17 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
     [mutate],
   );
 
+  const isBlockPending = useCallback((blockId: string) => {
+    const resolvedId = tempMapRef.current.get(blockId) ?? blockId;
+    return (inFlightByBlockRef.current.get(resolvedId) ?? 0) > 0;
+  }, []);
+
   return {
     ...mutation,
     updateBlock: updateBlockDebounced,
     flush,
     cancel,
     promoteTempId,
+    isBlockPending,
   };
 }
