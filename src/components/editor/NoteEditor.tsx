@@ -270,6 +270,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
             noteId={noteId}
             block={block}
             prevBlock={index > 0 ? blocks[index - 1] : null}
+            nextBlock={index < blocks.length - 1 ? blocks[index + 1] : null}
             index={index}
             total={blocks.length}
             isActive={activeBlockId === block.id}
@@ -300,6 +301,7 @@ type EditorBlockProps = {
   noteId: string;
   block: NoteBlock;
   prevBlock: NoteBlock | null;
+  nextBlock: NoteBlock | null;
   index: number;
   total: number;
   isActive: boolean;
@@ -327,6 +329,7 @@ function EditorBlock({
   noteId,
   block,
   prevBlock,
+  nextBlock,
   index,
   total,
   isActive,
@@ -360,6 +363,28 @@ function EditorBlock({
     }
   }, [block, clearDraft, draft, noteId]);
 
+  const isCaretOnFirstLine = (value: string, caret: number) =>
+    value.lastIndexOf("\n", caret - 1) === -1;
+
+  const isCaretOnLastLine = (value: string, caret: number) => value.indexOf("\n", caret) === -1;
+
+  const getCaretColumn = (value: string, caret: number) => {
+    const lineStart = value.lastIndexOf("\n", caret - 1) + 1;
+    return caret - lineStart;
+  };
+
+  const caretInFirstLineByColumn = (value: string, column: number) => {
+    const firstLineEnd = value.indexOf("\n");
+    const firstLineLength = firstLineEnd === -1 ? value.length : firstLineEnd;
+    return Math.min(column, firstLineLength);
+  };
+
+  const caretInLastLineByColumn = (value: string, column: number) => {
+    const lastLineStart = value.lastIndexOf("\n") + 1;
+    const lastLineLength = value.length - lastLineStart;
+    return lastLineStart + Math.min(column, lastLineLength);
+  };
+
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextText = event.target.value;
     resizeTextarea(event.currentTarget);
@@ -377,6 +402,49 @@ function EditorBlock({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing) return;
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const selectionStart = event.currentTarget.selectionStart ?? 0;
+      const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart;
+      if (selectionStart !== selectionEnd) return;
+
+      const caret = selectionStart;
+      const column = getCaretColumn(text, caret);
+
+      if (event.key === "ArrowUp") {
+        if (!prevBlock || !isCaretOnFirstLine(text, caret)) return;
+
+        event.preventDefault();
+        const prevDraft = useEditorStore.getState().byNoteId[noteId]?.draftsByBlockId[prevBlock.id];
+        const prevText = prevDraft?.text ?? getBlockText(prevBlock);
+        const nextCaret = caretInLastLineByColumn(prevText, column);
+
+        setActiveBlock(prevBlock.id);
+        setPendingFocus({
+          id: prevBlock.id,
+          selectionStart: nextCaret,
+          selectionEnd: nextCaret,
+        });
+        return;
+      }
+
+      if (!nextBlock || !isCaretOnLastLine(text, caret)) return;
+
+      event.preventDefault();
+      const nextDraft = useEditorStore.getState().byNoteId[noteId]?.draftsByBlockId[nextBlock.id];
+      const nextText = nextDraft?.text ?? getBlockText(nextBlock);
+      const nextCaret = caretInFirstLineByColumn(nextText, column);
+
+      setActiveBlock(nextBlock.id);
+      setPendingFocus({
+        id: nextBlock.id,
+        selectionStart: nextCaret,
+        selectionEnd: nextCaret,
+      });
+      return;
+    }
+
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       const originalText = text;
