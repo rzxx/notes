@@ -610,7 +610,7 @@ function EditorBlock({
         rows={1}
         style={isHeading(block.type) ? undefined : { lineHeight: paragraphLineHeight }}
         className={`w-full resize-none bg-transparent p-0 pr-24 text-stone-900 transition-colors outline-none ${
-          isHeading(block.type) ? "text-lg font-semibold" : "text-[15px]"
+          isHeading(block.type) ? "text-lg font-semibold" : "text-base"
         }`}
       />
     </div>
