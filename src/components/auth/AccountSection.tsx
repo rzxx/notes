@@ -3,7 +3,7 @@
 import { useShooAuth } from "@shoojs/react";
 
 export function AccountSection() {
-  const { identity, loading, signIn, clearIdentity } = useShooAuth();
+  const { identity, claims, loading, signIn, clearIdentity } = useShooAuth();
 
   if (loading) {
     return (
@@ -25,10 +25,12 @@ export function AccountSection() {
     );
   }
 
+  const displayName = claims?.name || identity.userId;
+
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-stone-900">{identity.userId}</p>
+        <p className="truncate text-sm font-medium text-stone-900">{displayName}</p>
       </div>
       <button
         onClick={() => clearIdentity()}
