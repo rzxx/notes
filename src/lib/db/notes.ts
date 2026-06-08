@@ -743,8 +743,8 @@ export async function getNotesList(input: {
         hasChildren: sql<boolean>`exists (
           select 1
           from ${noteClosure}
-          where ${noteClosure.userId} = ${notes.userId}
-            and ${noteClosure.ancestorId} = ${notes.id}
+          where ${noteClosure.userId} = ${sql.raw(`"notes"."user_id"`)}
+            and ${noteClosure.ancestorId} = ${sql.raw(`"notes"."id"`)}
             and ${noteClosure.depth} = 1
         )`.mapWith(Boolean),
       })
