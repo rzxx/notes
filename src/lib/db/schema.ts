@@ -17,7 +17,7 @@ export const notes = pgTable(
   "notes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
 
     parentId: uuid("parent_id").references((): AnyPgColumn => notes.id, { onDelete: "set null" }), // nullable root
 
@@ -50,7 +50,7 @@ export const notes = pgTable(
 export const noteClosure = pgTable(
   "note_closure",
   {
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     ancestorId: uuid("ancestor_id")
       .notNull()
       .references((): AnyPgColumn => notes.id, { onDelete: "cascade" }),
@@ -77,7 +77,7 @@ export const blocks = pgTable(
     noteId: uuid("note_id")
       .notNull()
       .references((): AnyPgColumn => notes.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
 
     type: text("type").notNull(), // e.g. 'paragraph' | 'heading' | ...
     rank: text("rank").notNull(), // ordering within note
