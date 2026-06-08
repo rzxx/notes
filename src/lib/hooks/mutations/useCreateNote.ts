@@ -5,6 +5,8 @@ import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
 import { rankAfter, rankInitial } from "@/lib/lexorank";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type CreateNoteInput = {
   parentId: string | null;
@@ -47,25 +49,24 @@ const ensureUniqueTitle = (parentId: string | null, title: string) => {
   return candidate;
 };
 
-async function createNote(input: CreateNoteInput) {
-  const result = await fetchResult<CreateNoteResponse>("/api/notes", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      parentId: input.parentId ?? null,
-      title: input.title,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useCreateNote() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: createNote,
+    mutationFn: async (input: CreateNoteInput) => {
+      const result = await fetchResult<CreateNoteResponse>("/api/notes", {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          parentId: input.parentId ?? null,
+          title: input.title,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       variables.title = ensureUniqueTitle(variables.parentId, variables.title);
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.parentId) });

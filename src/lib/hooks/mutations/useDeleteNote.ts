@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type DeleteNoteInput = {
   noteId: string;
@@ -15,22 +17,21 @@ type DeleteNoteResponse = {
   note: { deleted: boolean };
 };
 
-async function deleteNote(input: DeleteNoteInput) {
-  const result = await fetchResult<DeleteNoteResponse>("/api/notes", {
-    method: "DELETE",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ noteId: input.noteId }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useDeleteNote() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: deleteNote,
+    mutationFn: async (input: DeleteNoteInput) => {
+      const result = await fetchResult<DeleteNoteResponse>("/api/notes", {
+        method: "DELETE",
+        headers: authHeaders(token),
+        body: JSON.stringify({ noteId: input.noteId }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) }),

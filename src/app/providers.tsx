@@ -8,11 +8,13 @@ import { defaultQueryOptions } from "@/lib/query-config";
 import { toToastMessage } from "@/lib/error-messages";
 import { toastManager } from "@/lib/toast-manager";
 import { NotificationToasts } from "@/components/toasts/NotificationToasts";
+import { isAppError } from "@/lib/errors";
 
 function makeQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error) => {
+        if (isAppError(error) && error.code === "UNAUTHORIZED") return;
         const message = toToastMessage(error);
         toastManager.add({
           title: message.title,
@@ -23,6 +25,7 @@ function makeQueryClient() {
     }),
     mutationCache: new MutationCache({
       onError: (error) => {
+        if (isAppError(error) && error.code === "UNAUTHORIZED") return;
         const message = toToastMessage(error);
         toastManager.add({
           title: message.title,

@@ -3,16 +3,22 @@ import { noteIdParamSchema, updateNoteSchema } from "@/lib/db/validators";
 import { andThenAsync } from "@/lib/result";
 import { appErrorToHttp } from "@/lib/server/errors";
 import { safeJsonParse, safeParseToResult } from "@/lib/server/utils";
+import { verifyAuthToken } from "@/lib/server/auth";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsed = safeParseToResult(noteIdParamSchema, await context.params);
-  const result = await andThenAsync(parsed, (data) =>
-    getNoteById({ userId: process.env.STUB_USER_ID!, noteId: data.id }),
-  );
+  const result = await andThenAsync(parsed, (data) => getNoteById({ userId, noteId: data.id }));
 
   if (!result.ok) {
     const { status, body } = appErrorToHttp(result.error);
@@ -23,12 +29,19 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsedParams = safeParseToResult(noteIdParamSchema, await context.params);
   const parsedBody = await safeJsonParse(request, updateNoteSchema);
   const result = await andThenAsync(parsedParams, (params) =>
     andThenAsync(parsedBody, (body) =>
       renameNote({
-        userId: process.env.STUB_USER_ID!,
+        userId,
         noteId: params.id,
         title: body.title,
       }),

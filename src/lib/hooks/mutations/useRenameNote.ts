@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type RenameNoteInput = {
   noteId: string;
@@ -16,22 +18,21 @@ type RenameNoteResponse = {
   note: { id: string; title: string };
 };
 
-async function renameNote(input: RenameNoteInput) {
-  const result = await fetchResult<RenameNoteResponse>(`/api/notes/${input.noteId}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ title: input.title }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useRenameNote() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: renameNote,
+    mutationFn: async (input: RenameNoteInput) => {
+      const result = await fetchResult<RenameNoteResponse>(`/api/notes/${input.noteId}`, {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify({ title: input.title }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) }),

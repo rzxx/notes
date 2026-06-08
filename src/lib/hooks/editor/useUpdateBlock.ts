@@ -7,6 +7,8 @@ import { queryKeys } from "@/lib/query-keys";
 import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
 import type { BlockContent, BlockType } from "@/lib/editor/block-content";
 import { useEditorStore } from "@/lib/stores/editor";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type UpdateBlockInput = {
   noteId: string;
@@ -25,23 +27,9 @@ type UseUpdateBlockOptions = {
   debounceMs?: number;
 };
 
-async function updateBlock(input: UpdateBlockInput) {
-  const result = await fetchResult<UpdateBlockResponse>(`/api/blocks/${input.blockId}`, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      type: input.type,
-      contentJson: input.contentJson,
-      plainText: input.plainText,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
   const debounceMs = options?.debounceMs ?? 350;
   const timeoutRef = useRef(new Map<string, number>());
   const pendingRef = useRef(new Map<string, UpdateBlockInput>());
@@ -67,7 +55,20 @@ export function useUpdateBlock(options?: UseUpdateBlockOptions) {
   };
 
   const mutation = useMutation({
-    mutationFn: updateBlock,
+    mutationFn: async (input: UpdateBlockInput) => {
+      const result = await fetchResult<UpdateBlockResponse>(`/api/blocks/${input.blockId}`, {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          type: input.type,
+          contentJson: input.contentJson,
+          plainText: input.plainText,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       markBlockMutation(variables.blockId, 1);
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });

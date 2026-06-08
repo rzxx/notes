@@ -25,6 +25,10 @@ const APP_ERROR_MESSAGES: Partial<Record<AppErrorCode, ToastMessage>> = {
     title: "Action not allowed",
     description: "You do not have permission to do that.",
   },
+  UNAUTHORIZED: {
+    title: "Not signed in",
+    description: "Please sign in to continue.",
+  },
   VALIDATION_ERROR: {
     title: "Invalid input",
     description: "Please check your input and try again.",

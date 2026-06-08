@@ -7,6 +7,8 @@ import type { NoteBlock, NoteDetailResponse } from "@/lib/hooks/editor/types";
 import type { BlockContent, BlockType } from "@/lib/editor/block-content";
 import { insertBlockAt, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
 import { makeTempId } from "@/lib/utils";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type CreateBlockInput = {
   noteId: string;
@@ -21,28 +23,27 @@ type CreateBlockResponse = {
   block: NoteBlock;
 };
 
-async function createBlock(input: CreateBlockInput) {
-  const result = await fetchResult<CreateBlockResponse>("/api/blocks", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      noteId: input.noteId,
-      type: input.type,
-      position: input.position,
-      contentJson: input.contentJson,
-      plainText: input.plainText,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useCreateBlock() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: createBlock,
+    mutationFn: async (input: CreateBlockInput) => {
+      const result = await fetchResult<CreateBlockResponse>("/api/blocks", {
+        method: "POST",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          noteId: input.noteId,
+          type: input.type,
+          position: input.position,
+          contentJson: input.contentJson,
+          plainText: input.plainText,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
 

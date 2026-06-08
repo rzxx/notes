@@ -3,18 +3,26 @@ import { deleteBlock, updateBlock } from "@/lib/db/blocks";
 import { andThenAsync } from "@/lib/result";
 import { appErrorToHttp } from "@/lib/server/errors";
 import { safeJsonParse, safeParseToResult } from "@/lib/server/utils";
+import { verifyAuthToken } from "@/lib/server/auth";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
 export async function PUT(request: Request, context: RouteContext) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsedParams = safeParseToResult(blockIdParamSchema, await context.params);
   const parsedBody = await safeJsonParse(request, updateBlockSchema);
   const result = await andThenAsync(parsedParams, (params) =>
     andThenAsync(parsedBody, (body) =>
       updateBlock({
-        userId: process.env.STUB_USER_ID!,
+        userId,
         blockId: params.id,
         type: body.type,
         contentJson: body.contentJson,
@@ -31,10 +39,17 @@ export async function PUT(request: Request, context: RouteContext) {
   return Response.json({ ok: true, ...result.value });
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: RouteContext) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsed = safeParseToResult(blockIdParamSchema, await context.params);
   const result = await andThenAsync(parsed, (params) =>
-    deleteBlock({ userId: process.env.STUB_USER_ID!, blockId: params.id }),
+    deleteBlock({ userId, blockId: params.id }),
   );
 
   if (!result.ok) {

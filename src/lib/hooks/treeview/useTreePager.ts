@@ -7,6 +7,8 @@ import { useRetryTelemetry } from "@/lib/hooks/treeview/useRetryTelemetry";
 import { FETCH_TIMEOUT_MS } from "@/lib/query-config";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type NotesPage = {
   ok: true;
@@ -21,7 +23,11 @@ type NotesPage = {
   nextCursor: string | null;
 };
 
-export async function fetchNotesPage(parentId: string | null, cursor: string | null) {
+export async function fetchNotesPage(
+  parentId: string | null,
+  cursor: string | null,
+  token: string | null,
+) {
   const params = new URLSearchParams();
   if (parentId) params.set("parentId", parentId);
   if (cursor) params.set("cursor", cursor);
@@ -32,7 +38,7 @@ export async function fetchNotesPage(parentId: string | null, cursor: string | n
     url,
     {
       method: "GET",
-      headers: { "content-type": "application/json" },
+      headers: authHeaders(token),
     },
     FETCH_TIMEOUT_MS,
   );
@@ -43,6 +49,7 @@ export async function fetchNotesPage(parentId: string | null, cursor: string | n
 
 export function useTreePager(parentId: string | null, { enabled = false } = {}) {
   const { upsertNodes } = useTreeStore.getState();
+  const { token, userId } = useAuthToken();
 
   const [attemptCount, setAttemptCount] = React.useState(0);
 
@@ -51,8 +58,8 @@ export function useTreePager(parentId: string | null, { enabled = false } = {}) 
   }, [parentId]);
 
   const query = useInfiniteQuery({
-    queryKey: queryKeys.notes.list(parentId),
-    queryFn: ({ pageParam }) => fetchNotesPage(parentId, pageParam ?? null),
+    queryKey: [...queryKeys.notes.list(parentId), userId, token],
+    queryFn: ({ pageParam }) => fetchNotesPage(parentId, pageParam ?? null, token),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     enabled,

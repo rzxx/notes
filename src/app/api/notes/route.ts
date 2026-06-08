@@ -3,8 +3,16 @@ import { createNote, deleteNote, getNotesList } from "@/lib/db/notes";
 import { andThenAsync } from "@/lib/result";
 import { safeJsonParse, safeParseToResult } from "@/lib/server/utils";
 import { appErrorToHttp } from "@/lib/server/errors";
+import { verifyAuthToken } from "@/lib/server/auth";
 
 export async function GET(request: Request) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const url = new URL(request.url);
   const parentIdParam = url.searchParams.get("parentId");
   const limitParam = url.searchParams.get("limit");
@@ -18,7 +26,7 @@ export async function GET(request: Request) {
 
   const result = await andThenAsync(parsed, (data) =>
     getNotesList({
-      userId: process.env.STUB_USER_ID!,
+      userId,
       parentId: data.parentId,
       limit: data.limit,
       cursor: data.cursor,
@@ -33,10 +41,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsed = await safeJsonParse(request, createNoteSchema);
   const result = await andThenAsync(parsed, (data) =>
     createNote({
-      userId: process.env.STUB_USER_ID!,
+      userId,
       parentId: data.parentId,
       title: data.title,
     }),
@@ -50,10 +65,17 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsed = await safeJsonParse(request, deleteNoteSchema);
   const result = await andThenAsync(parsed, (data) =>
     deleteNote({
-      userId: process.env.STUB_USER_ID!,
+      userId,
       noteId: data.noteId,
     }),
   );

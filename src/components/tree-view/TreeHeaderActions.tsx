@@ -2,11 +2,22 @@
 
 import { Plus } from "lucide-react";
 import { useCreateNote } from "@/lib/hooks/mutations/useCreateNote";
+import { useAuthToken } from "@/lib/auth/client";
+import { toastManager } from "@/lib/toast-manager";
 
 export function TreeHeaderActions() {
   const createNote = useCreateNote();
+  const { token } = useAuthToken();
 
   const handleCreateRootNote = () => {
+    if (!token) {
+      toastManager.add({
+        title: "Not signed in",
+        description: "Please sign in to create a note.",
+        data: { type: "info" },
+      });
+      return;
+    }
     createNote.mutate({ parentId: null, title: "Untitled note" });
   };
 

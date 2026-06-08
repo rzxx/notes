@@ -2,16 +2,23 @@ import { rebuildRanks } from "@/lib/db/notes";
 import { andThenAsync } from "@/lib/result";
 import { appErrorToHttp } from "@/lib/server/errors";
 import { safeJsonParse } from "@/lib/server/utils";
+import { verifyAuthToken } from "@/lib/server/auth";
 import { z } from "zod";
 
 const rebuildRanksSchema = z.unknown();
 
 export async function POST(request: Request) {
-  // using stub user id for simplicity, so body is not needed now
+  const authResult = await verifyAuthToken(request);
+  if (!authResult.ok) {
+    const { status, body } = appErrorToHttp(authResult.error);
+    return Response.json(body, { status });
+  }
+  const userId = authResult.value;
+
   const parsed = await safeJsonParse(request, rebuildRanksSchema);
   const result = await andThenAsync(parsed, () =>
     rebuildRanks({
-      userId: process.env.STUB_USER_ID!,
+      userId,
     }),
   );
 

@@ -5,6 +5,8 @@ import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteDetailResponse } from "@/lib/hooks/editor/types";
 import { reorderBlockWithAnchors } from "@/lib/editor/block-list";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type ReorderBlocksInput = {
   noteId: string;
@@ -19,27 +21,26 @@ type ReorderBlocksResponse = {
   rank: string;
 };
 
-async function reorderBlocks(input: ReorderBlocksInput) {
-  const result = await fetchResult<ReorderBlocksResponse>("/api/blocks/reorder", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      noteId: input.noteId,
-      blockId: input.blockId,
-      beforeId: input.beforeId,
-      afterId: input.afterId,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useReorderBlocks() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: reorderBlocks,
+    mutationFn: async (input: ReorderBlocksInput) => {
+      const result = await fetchResult<ReorderBlocksResponse>("/api/blocks/reorder", {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          noteId: input.noteId,
+          blockId: input.blockId,
+          beforeId: input.beforeId,
+          afterId: input.afterId,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
 

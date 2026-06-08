@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useTreeStore } from "@/lib/stores/tree";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type MoveNoteInput = {
   noteId: string;
@@ -21,27 +23,26 @@ type MoveNoteResponse = {
   rank?: string;
 };
 
-async function moveNote(input: MoveNoteInput) {
-  const result = await fetchResult<MoveNoteResponse>("/api/notes/move", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      noteId: input.noteId,
-      newParentId: input.newParentId,
-      beforeId: input.beforeId ?? null,
-      afterId: input.afterId ?? null,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useMoveNote() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: moveNote,
+    mutationFn: async (input: MoveNoteInput) => {
+      const result = await fetchResult<MoveNoteResponse>("/api/notes/move", {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          noteId: input.noteId,
+          newParentId: input.newParentId,
+          beforeId: input.beforeId ?? null,
+          afterId: input.afterId ?? null,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: queryKeys.notes.list(variables.previousParentId) }),

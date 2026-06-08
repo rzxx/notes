@@ -5,6 +5,8 @@ import { fetchResult } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { NoteDetailResponse, NoteBlock } from "@/lib/hooks/editor/types";
 import { removeBlockById, replaceBlockById, sortBlocks } from "@/lib/editor/block-list";
+import { authHeaders } from "@/lib/auth/client";
+import { useAuthToken } from "@/lib/auth/client";
 
 type MergeBlocksInput = {
   noteId: string;
@@ -18,26 +20,25 @@ type MergeBlocksResponse = {
   block: NoteBlock;
 };
 
-async function mergeBlocks(input: MergeBlocksInput) {
-  const result = await fetchResult<MergeBlocksResponse>("/api/blocks/merge", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      prevBlockId: input.prevBlockId,
-      currentBlockId: input.currentBlockId,
-      mergedText: input.mergedText,
-    }),
-  });
-
-  if (!result.ok) throw result.error;
-  return result.value;
-}
-
 export function useMergeBlocks() {
   const queryClient = useQueryClient();
+  const { token } = useAuthToken();
 
   return useMutation({
-    mutationFn: mergeBlocks,
+    mutationFn: async (input: MergeBlocksInput) => {
+      const result = await fetchResult<MergeBlocksResponse>("/api/blocks/merge", {
+        method: "PUT",
+        headers: authHeaders(token),
+        body: JSON.stringify({
+          prevBlockId: input.prevBlockId,
+          currentBlockId: input.currentBlockId,
+          mergedText: input.mergedText,
+        }),
+      });
+
+      if (!result.ok) throw result.error;
+      return result.value;
+    },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notes.detail(variables.noteId) });
 

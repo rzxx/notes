@@ -80,7 +80,6 @@ It is not yet a finished product. The current state is best described as:
 
 These are known gaps, not surprises:
 
-- Real authentication is not implemented yet. API routes currently use `STUB_USER_ID`.
 - Search is planned but not implemented in this codebase yet.
 - Rich text spans, nested blocks, sharing, and collaboration are future work.
 - There is no test suite yet.
@@ -151,13 +150,13 @@ Create a local `.env` file with:
 
 ```env
 DATABASE_URL=postgresql://user:password@host/database?sslmode=require
-STUB_USER_ID=00000000-0000-0000-0000-000000000001
+APP_ORIGIN=http://localhost:3000
 ```
 
 Notes on these variables:
 
 - `DATABASE_URL` is used by Drizzle and the server runtime.
-- `STUB_USER_ID` exists because authentication is not wired yet. All API calls currently operate as this user.
+- `APP_ORIGIN` is used to verify Shoo auth tokens. Set it to your deployed origin in production (e.g., `https://my-app.vercel.app`).
 
 ### Install and run
 
@@ -255,7 +254,6 @@ The current editor is intentionally narrow. It proves the data model and interac
 
 Near-term work visible in the repo docs:
 
-- replace `STUB_USER_ID` with real auth
 - add search over note content
 - improve editor capabilities beyond plain text paragraph/heading blocks
 - eventually support nested blocks

@@ -13,6 +13,7 @@ const ERROR_HTTP_MAP = {
   BLOCK_NOT_FOUND: { status: 404 },
   RANK_EXHAUSTED: { status: 409 },
   FORBIDDEN: { status: 403 },
+  UNAUTHORIZED: { status: 401 },
   DB_ERROR: { status: 500 },
   VALIDATION_ERROR: { status: 400 },
   JSON_PARSE_ERROR: { status: 400 },
