@@ -1,9 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import { useShooAuth } from "@shoojs/react";
 
+function scrambleEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  const [domainName, ...tldParts] = domain.split(".");
+  const tld = tldParts.join(".");
+  const scrambledLocal = local.charAt(0) + "*".repeat(Math.max(1, local.length - 1));
+  const scrambledDomain = domainName.charAt(0) + "*".repeat(Math.max(1, domainName.length - 1));
+  return `${scrambledLocal}@${scrambledDomain}.${tld}`;
+}
+
+function EmailDisplay({ email }: { email: string }) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <button
+      onClick={() => setRevealed(true)}
+      onBlur={() => setRevealed(false)}
+      className="text-left"
+      type="button"
+    >
+      <span
+        className={`inline-block transition-all duration-200 ${
+          revealed ? "blur-0" : "blur-sm select-none"
+        }`}
+      >
+        {revealed ? email : scrambleEmail(email)}
+      </span>
+    </button>
+  );
+}
+
 export function AccountSection() {
-  const { identity, claims, loading, signIn, clearIdentity } = useShooAuth();
+  const { identity, claims, loading, signIn, clearIdentity } = useShooAuth({
+    requestPii: true,
+  });
 
   if (loading) {
     return (
@@ -25,12 +59,19 @@ export function AccountSection() {
     );
   }
 
-  const displayName = claims?.name || identity.userId;
+  const name = claims?.name;
+  const email = claims?.email;
 
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-stone-900">{displayName}</p>
+        {name ? (
+          <p className="truncate text-sm font-medium text-stone-900">{name}</p>
+        ) : email ? (
+          <EmailDisplay email={email} />
+        ) : (
+          <p className="truncate text-sm font-medium text-stone-900">{identity.userId}</p>
+        )}
       </div>
       <button
         onClick={() => clearIdentity()}
